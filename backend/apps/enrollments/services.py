@@ -52,14 +52,16 @@ def enroll(*, student, course, course_class, actor, source, request=None):
     if existing:
         raise ConflictError('The student already has an enrollment for this course.')
 
-    settings = course.center.settings
+    from apps.centers.policy import resolve_policy
+
+    policy = resolve_policy(course.center)
     if source == EnrollmentSource.SELF:
         if actor.role != Role.STUDENT or actor.id != student.id:
             raise PermissionDenied('Students can only enroll themselves.')
         assert_operational(actor)
-        if not settings.allow_self_enrollment:
+        if not policy['self_enrollment']['effective']:
             raise BusinessRuleError('Self-enrollment is turned off. A center manager can enroll the student.')
-        status = EnrollmentStatus.PENDING if settings.require_enrollment_approval else EnrollmentStatus.ACTIVE
+        status = EnrollmentStatus.PENDING if policy['approval_required']['effective'] else EnrollmentStatus.ACTIVE
     elif source == EnrollmentSource.MANUAL:
         if actor.role != Role.CENTER_MANAGER:
             raise PermissionDenied('Only a center manager can enroll a student manually.')
@@ -148,9 +150,13 @@ def join_waitlist(*, student, course, course_class, actor, request=None):
 
     from apps.enrollments.models import WaitlistEntry
 
+    from apps.centers.policy import resolve_policy
+
     if actor.role != Role.STUDENT or actor.id != student.id:
         raise PermissionDenied('Students can only join a waitlist for themselves.')
     assert_operational(actor)
+    if not resolve_policy(course.center)['waitlist']['effective']:
+        raise BusinessRuleError('The waitlist is closed.')
     if student.center_id != course.center_id or course_class.course_id != course.id:
         raise PermissionDenied('A student cannot wait for a class at another center.')
     if Enrollment.objects.filter(student=student, course=course, status__in=OPEN_ENROLLMENT).exists():
@@ -192,18 +198,20 @@ def promote_waitlist(entry, actor, request=None):
         raise PermissionDenied('Waitlist promotion is restricted for this center.')
     assert_same_center(actor, entry.center, request)
     assert_operational(actor)
-    if entry.status != WaitlistEntry.WAITING:
-        raise ConflictError('This waitlist entry is no longer waiting.')
-    enrollment = enroll(
-        student=entry.student,
-        course=entry.course,
-        course_class=entry.course_class,
-        actor=actor,
-        source=EnrollmentSource.MANUAL,
-        request=request,
-    )
-    entry.status = WaitlistEntry.PROMOTED
-    entry.save(update_fields=['status', 'updated_at'])
+    with transaction.atomic():
+        entry = WaitlistEntry.objects.select_for_update().get(pk=entry.pk)
+        if entry.status != WaitlistEntry.WAITING:
+            raise ConflictError('This waitlist entry is no longer waiting.')
+        enrollment = enroll(
+            student=entry.student,
+            course=entry.course,
+            course_class=entry.course_class,
+            actor=actor,
+            source=EnrollmentSource.MANUAL,
+            request=request,
+        )
+        entry.status = WaitlistEntry.PROMOTED
+        entry.save(update_fields=['status', 'updated_at'])
     return enrollment
 
 

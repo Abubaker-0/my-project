@@ -83,7 +83,7 @@ class PaymentWriteSerializer(serializers.Serializer):
     method = serializers.ChoiceField(choices=PaymentMethod.choices)
     reference = serializers.CharField(required=False, allow_blank=True)
     paid_at = serializers.DateTimeField(required=False)
-    idempotency_key = serializers.CharField(required=False, allow_blank=True, max_length=80)
+    idempotency_key = serializers.CharField(max_length=80)
 
 
 class InstallmentPlanSerializer(serializers.Serializer):

@@ -148,7 +148,11 @@ def archive_center(center, actor, request=None):
 
 
 def assign_manager(*, center, manager, contract_data, actor, replace=False, request=None):
-    """Attach one manager. Busy managers and a second active manager are refused."""
+    """Attach one manager. Busy managers and a second active manager are refused.
+
+    The lock holder is replaced even when that person is no longer eligible,
+    so a deactivated or future-dated manager does not block a new assignment.
+    """
 
     if actor.role != Role.SUPER_ADMIN:
         raise PermissionDenied('Only the super admin can assign a center manager.')
@@ -159,16 +163,21 @@ def assign_manager(*, center, manager, contract_data, actor, replace=False, requ
         if center.is_deleted:
             raise BusinessRuleError('Archived centers cannot take a new manager.')
         refresh_expired_contracts(manager)
+        refresh_expired_contracts()
         active = active_contract_for(manager)
         if active and active.center_id != center.id:
             raise BusinessRuleError('This manager still has an active contract at another center.')
         if active and active.center_id == center.id:
             raise BusinessRuleError('This manager is already assigned to this center.')
-        current = center.get_active_manager()
-        if current and current.id != manager.id:
+        current_contract = (
+            Contract.objects.select_for_update()
+            .filter(status=ContractStatus.ACTIVE, active_manager_lock=center.id)
+            .exclude(user=manager)
+            .first()
+        )
+        if current_contract:
             if not replace:
                 raise BusinessRuleError('This center already has an active manager. Confirm replacement to continue.')
-            current_contract = Contract.objects.select_for_update().get(user=current, status=ContractStatus.ACTIVE)
             terminate_contract(current_contract, actor, force=True, request=request)
         contract = create_contract(manager, center, contract_data, actor, request=request)
     write_audit(
@@ -190,10 +199,19 @@ def update_center_settings(settings_obj, data, actor, request=None):
         assert_same_center(actor, settings_obj.center, request)
     elif actor.role != Role.SUPER_ADMIN:
         raise PermissionDenied('You cannot edit these settings.')
-    for field in ('allow_self_enrollment', 'require_enrollment_approval', 'max_installments'):
+    for field in (
+        'allow_self_enrollment',
+        'require_enrollment_approval',
+        'allow_waitlist',
+        'allow_student_refund_requests',
+        'allow_finance_refund_requests',
+        'max_installments',
+    ):
         if field in data:
             setattr(settings_obj, field, data[field])
-    cap = min(3, GlobalSettings.load().max_installments)
+    from apps.centers.policy import PRODUCT_INSTALLMENT_LIMIT, center_payload
+
+    cap = min(PRODUCT_INSTALLMENT_LIMIT, GlobalSettings.load().max_installments)
     if not 1 <= int(settings_obj.max_installments) <= cap:
         raise BusinessRuleError(f'Installments must be between 1 and {cap}.')
     settings_obj.full_clean()
@@ -201,13 +219,9 @@ def update_center_settings(settings_obj, data, actor, request=None):
     record_policy(
         scope='center',
         center=settings_obj.center,
-        payload={
-            'allow_self_enrollment': settings_obj.allow_self_enrollment,
-            'require_enrollment_approval': settings_obj.require_enrollment_approval,
-            'max_installments': settings_obj.max_installments,
-        },
+        payload=center_payload(settings_obj),
         actor=actor,
-        note='Center policy change applies to later enrollments and new installment plans.',
+        note=data.get('note') or 'Center policy change applies to later enrollments and new installment plans.',
     )
     return settings_obj
 
@@ -218,31 +232,35 @@ def update_global_settings(data, actor, request=None):
     if actor.role != Role.SUPER_ADMIN:
         raise PermissionDenied('Only the super admin can change global settings.')
     settings_obj = GlobalSettings.load()
+    if 'currency_label' in data and str(data.get('currency_label') or '').strip().upper() != 'AFN':
+        raise BusinessRuleError('Amounts are AFN. The currency label cannot name another currency.')
     for field in (
         'organization_name',
         'support_email',
         'support_phone',
-        'currency_label',
         'default_allow_self_enrollment',
+        'allow_self_enrollment',
+        'require_enrollment_approval',
+        'allow_waitlist',
+        'allow_student_refund_requests',
+        'allow_finance_refund_requests',
         'max_installments',
     ):
         if field in data:
             setattr(settings_obj, field, data[field])
+    settings_obj.currency_label = 'AFN'
     if not 1 <= int(settings_obj.max_installments) <= 3:
         raise BusinessRuleError('The global installment maximum must be between 1 and 3.')
     settings_obj.full_clean()
     settings_obj.save()
+    from apps.centers.policy import global_payload
+
     record_policy(
         scope='global',
         center=None,
-        payload={
-            'organization_name': settings_obj.organization_name,
-            'currency_label': settings_obj.currency_label,
-            'default_allow_self_enrollment': settings_obj.default_allow_self_enrollment,
-            'max_installments': settings_obj.max_installments,
-        },
+        payload=global_payload(settings_obj),
         actor=actor,
-        note='Global policy change does not rewrite issued invoices or frozen reports.',
+        note=data.get('note') or 'Global policy change does not rewrite issued invoices or frozen reports.',
     )
     return settings_obj
 

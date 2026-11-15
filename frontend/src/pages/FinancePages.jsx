@@ -12,6 +12,7 @@ import { usePaged } from '../hooks/usePaged';
 import { DataTable } from '../components/DataTable';
 import { Badge, Button, Field, Input, Modal, Select, StatCard, TextArea } from '../components/ui';
 import { money, personName, todayISO, addDays } from '../utils/format';
+import { createPaymentKey, paymentBody } from '../utils/paymentIntent';
 
 function useSummary(centerId) {
   const { user } = useAuth();
@@ -79,6 +80,8 @@ export function PaymentsPage() {
   const list = usePaged('/finance/payments/');
   const invoices = usePaged('/finance/invoices/');
   const [open, setOpen] = useState(false);
+  const [intentKey, setIntentKey] = useState('');
+  const [receipt, setReceipt] = useState(null);
   const form = useForm({ defaultValues: { method: 'cash' } });
   const method = form.watch('method');
   const finance = user?.role === 'finance_manager';
@@ -86,7 +89,7 @@ export function PaymentsPage() {
     <div>
       <div className="page-head">
         <h2>{t('nav.payments')}</h2>
-        {finance ? <Button onClick={() => setOpen(true)}>{t('pages.newPayment')}</Button> : null}
+        {finance ? <Button onClick={() => { setIntentKey(createPaymentKey()); setReceipt(null); setOpen(true); }}>{t('pages.newPayment')}</Button> : null}
       </div>
       <DataTable
         {...list}
@@ -112,16 +115,13 @@ export function PaymentsPage() {
       />
       <Modal title={t('pages.newPayment')} open={open} onClose={() => setOpen(false)}>
         <p className="muted">{t('common.bankHint')}</p>
+        {receipt ? <p>{receipt.receipt_number} · {receipt.replayed ? t('common.paymentReplay') : t('common.saved')}</p> : null}
         <form className="grid" onSubmit={form.handleSubmit(async (values) => {
           try {
-            await client.post('/finance/payments/', {
-              invoice: Number(values.invoice),
-              amount: values.amount,
-              method: values.method,
-              reference: values.reference || '',
-            });
-            toast(t('common.saved'), 'success');
-            setOpen(false);
+            const response = await client.post('/finance/payments/', paymentBody(intentKey, values));
+            const data = unwrap(response);
+            setReceipt(data);
+            toast(data.replayed ? t('common.paymentReplay') : t('common.saved'), 'success');
             list.reload();
           } catch (err) {
             toast(errorMessage(err), 'danger');

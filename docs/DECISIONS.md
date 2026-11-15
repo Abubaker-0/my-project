@@ -131,5 +131,60 @@ These decisions close gaps where the repository did not already state a stronger
 - Reason: classmates do not need contact or photo data to attend class.
 - Security and financial implications: this is a response filter. It does not delete stored profile data.
 - Effect on existing data: none.
-- Tests: serializer behavior is covered by the roster endpoints used in attendance tests; a dedicated privacy assertion was not added in this pass.
+- Tests: `test_privacy_and_scope` checks classmate redaction, own invoices, photo denial, and cross-center classroom lookup.
 - Reversibility: stop redacting fields in `to_representation`.
+
+## D-013 — A payment key is required
+
+- Ambiguity: an optional idempotency key left a path that could record the same payment twice.
+- Evidence reviewed: no external payment client sends requests without a key. The React payment form is the only writer.
+- Chosen behavior: `POST /api/finance/payments/` requires `idempotency_key`. The form creates one key when the dialog opens and reuses it if the request is retried. The same actor, key, and payload returns the original payment with `replayed: true` and HTTP 200. A different payload is 409. The actor row and the invoice row are locked, and `(received_by, idempotency_key)` is unique. Empty legacy keys are stored as NULL so they do not collide.
+- Reason: keeping the key optional preserved an unsafe path for a client that does not exist.
+- Security and financial implications: a lost response can be retried without a second receipt.
+- Effect on existing data: blank keys become NULL. Existing payments are not duplicated.
+- Tests: `test_payment_key_is_required`, `test_payment_idempotency_and_receipt`, `test_identical_idempotency_keys_create_one_payment`, `test_same_key_with_different_payloads_keeps_one_amount`.
+- Reversibility: stop requiring the field only if a real external client appears. Do not go back to an optional key by default.
+
+## D-014 — Policy is resolved from three layers
+
+- Ambiguity: global settings were defaults, not a ceiling, and waitlist and refund availability were not policies.
+- Evidence reviewed: `CenterSettings` and `GlobalSettings` fields, `installment_cap`, enrollment and refund services.
+- Chosen behavior: self-enrollment and waitlist and both refund-request switches are `global allows AND center enables`. Approval is `global requires OR center requires`. The installment limit is `min(3, global, center)`. Exports stay on `exports.invoices` so they are not configured twice. The currency label cannot leave AFN, and amounts are not rewritten.
+- Reason: a label change would make stored AFN figures look like another currency.
+- Security and financial implications: a lower installment cap and a closed refund switch apply only to later operations.
+- Effect on existing data: new boolean columns default to the previous behavior (features on, approval not globally forced).
+- Tests: `test_policy_resolution_and_afn_label`.
+- Reversibility: set the new global booleans back to their defaults. Do not delete policy revisions.
+
+## D-015 — A centre without an eligible manager cannot take operational writes
+
+- Ambiguity: a deactivated manager still held `active_manager_lock`, which blocked replacement and still looked like management.
+- Evidence reviewed: `get_active_manager`, `assign_manager`, `assert_operational`, `Contract.save`.
+- Chosen behavior: an eligible manager is an active user whose stored-active contract includes today in Asia/Kabul. Staff and student operational writes call that check. Replacement locks the centre and terminates the current lock holder even when that person is no longer eligible. A failed replacement rolls back. An expired contract is refreshed on the next write, which clears the lock so a new contract can be saved. A future start date does not authorize today. One stored-active contract per person remains.
+- Reason: the unique lock is the exclusivity rule. Date and account checks are eligibility, not a second active contract.
+- Security and financial implications: finance cannot collect while the centre has no eligible manager.
+- Effect on existing data: none until the next write. An already-expired row is marked expired when it is next checked.
+- Tests: `test_expired_contract_stops_writes_and_can_be_renewed`, `test_future_contract_does_not_authorize_today`, `test_failed_replacement_keeps_the_current_manager`, `test_deactivated_manager_blocks_operations_until_replacement`.
+- Reversibility: stop the eligible-manager check. Do not delete contracts.
+
+## D-016 — Teachers request a correction; they do not edit the register
+
+- Ambiguity: the teacher workflow asked for a correction request where the product supported one, and the register was manager-corrected directly.
+- Evidence reviewed: `correct_attendance` rejects teachers. No request model existed.
+- Chosen behavior: the teacher files `AttendanceCorrectionRequest`. The mark stays until the manager approves, which calls the existing correction and keeps the original value. `attendance.request_correction` can be narrowed. `attendance.correct` cannot.
+- Reason: letting the teacher edit the submitted row would remove the manager check.
+- Security and financial implications: none on invoices.
+- Effect on existing data: new request rows only.
+- Tests: `test_teacher_correction_request_does_not_change_the_mark_until_approval`.
+- Reversibility: stop the request endpoints. Keep `AttendanceCorrection` history.
+
+## D-017 — Room capacity is fixed at creation
+
+- Ambiguity: whether a missing room edit was a defect.
+- Evidence reviewed: `ClassroomViewSet.http_method_names` is get and post. Course capacity updates already reject a cap below occupancy. Enrollment rechecks the current room size inside the seat transaction.
+- Chosen behavior: there is no room update route. `PATCH` returns 405. Capacity cannot be lowered through another classroom route.
+- Reason: adding an editor was not required to keep the occupancy rule.
+- Security and financial implications: none.
+- Effect on existing data: none.
+- Tests: `test_classroom_capacity_has_no_update_route`.
+- Reversibility: add an update service later if room editing becomes a requirement. It must reject a capacity below committed occupancy.

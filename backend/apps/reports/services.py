@@ -291,8 +291,12 @@ def create_financial_report(*, center, title, start, end, actor, request=None):
 def submit_report(report, actor, request=None):
     """Hand a draft report to the center manager."""
 
+    from apps.common.permissions_catalog import has_permission
+
     if actor.role != Role.FINANCE_MANAGER:
         raise PermissionDenied('Only the finance manager can submit a report.')
+    if not has_permission(actor, 'reports.prepare', report.center):
+        raise PermissionDenied('Report preparation is restricted for this center.')
     assert_same_center(actor, report.center, request)
     if report.status != ReportStatus.DRAFT:
         raise ConflictError('Only a draft report can be submitted.')
@@ -384,11 +388,14 @@ def revise_report(report, actor, request=None):
 def integrity_report():
     """Read-only checks. This function never changes rows."""
 
+    from django.db.models import Count, F, Q, Sum
+
     from apps.accounts.models import Contract
     from apps.centers.models import Center
     from apps.common.choices import OPEN_ENROLLMENT
+    from apps.courses.models import Course
     from apps.enrollments.models import Enrollment
-    from apps.finance.models import Invoice
+    from apps.finance.models import Invoice, Payment
 
     issues = []
     for center in Center.objects.filter(is_deleted=False, is_active=True):
@@ -397,9 +404,14 @@ def integrity_report():
     for invoice in Invoice.objects.all().iterator():
         if money(invoice.paid_amount) > money(invoice.net_amount):
             issues.append({'code': 'paid_above_net', 'invoice': invoice.invoice_number})
+        if money(invoice.refunded_amount) > money(invoice.paid_amount):
+            issues.append({'code': 'refunded_above_paid', 'invoice': invoice.invoice_number})
         planned = list(invoice.installments.all())
         if planned and money(sum((item.amount for item in planned), Decimal('0'))) != money(invoice.net_amount):
             issues.append({'code': 'installment_sum_mismatch', 'invoice': invoice.invoice_number})
+        collected = Payment.objects.filter(invoice=invoice).aggregate(total=Sum('amount'))['total']
+        if collected is not None and money(collected) != money(invoice.paid_amount):
+            issues.append({'code': 'payment_total_mismatch', 'invoice': invoice.invoice_number})
     open_pairs = (
         Enrollment.objects.filter(status__in=OPEN_ENROLLMENT)
         .values('student_id', 'course_id')
@@ -408,7 +420,21 @@ def integrity_report():
     )
     for pair in open_pairs:
         issues.append({'code': 'duplicate_open_enrollment', 'student': pair['student_id'], 'course': pair['course_id']})
+    for enrollment in Enrollment.objects.exclude(center_id=F('course__center_id')).iterator():
+        issues.append({'code': 'enrollment_center_mismatch', 'enrollment': enrollment.id})
+    for enrollment in Enrollment.objects.exclude(center_id=F('student__center_id')).iterator():
+        issues.append({'code': 'student_center_mismatch', 'enrollment': enrollment.id})
     expired_locks = Contract.objects.filter(status='active', end_date__lt=timezone.localdate()).count()
     if expired_locks:
         issues.append({'code': 'expired_contract_still_active', 'count': expired_locks})
+    inactive_locks = Contract.objects.filter(status='active', active_manager_lock__isnull=False, user__is_active=False).count()
+    if inactive_locks:
+        issues.append({'code': 'inactive_manager_lock', 'count': inactive_locks})
+    for contract in Contract.objects.filter(status='active').exclude(user__center_id=F('center_id')).iterator():
+        issues.append({'code': 'contract_center_mismatch', 'contract': contract.id})
+    crowded = Course.objects.annotate(
+        taken=Count('enrollments', filter=Q(enrollments__status__in=OPEN_ENROLLMENT)),
+    ).filter(taken__gt=F('capacity'))
+    for course in crowded:
+        issues.append({'code': 'capacity_exceeded', 'course': course.code, 'taken': course.taken, 'capacity': course.capacity})
     return issues

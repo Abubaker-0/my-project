@@ -66,10 +66,12 @@ The API listens on `http://127.0.0.1:8000`. Health check: `http://127.0.0.1:8000
 Useful checks:
 
 ```bat
-python manage.py test apps.common.tests.test_business_rules apps.common.tests.test_workflows
+python manage.py test apps.common.tests
 python manage.py notify_contract_expirations
 python manage.py check_integrity
 ```
+
+`TEST_DB=mysql` runs the same suite, including the ten concurrency tests, against MySQL. SQLite skips those ten tests. See `docs/DEPLOYMENT.md` before migrating a real database.
 
 `notify_contract_expirations` writes in-app alerts for contracts that end in 30 days, 7 days, or today. Running it again does not create a second copy of the same alert. It does not send email or SMS.
 

@@ -87,7 +87,7 @@ Center settings: `allow_self_enrollment`, `require_enrollment_approval`, `max_in
 | --- | --- | --- |
 | GET | `/finance/summary/?center=` | Finance and manager use their center. Super admin must pass `center`. Optional `start` and `end`. |
 | GET | `/finance/invoices/` | Scoped. Students see their own. |
-| GET, POST | `/finance/payments/` | Finance creates `{ invoice, amount, method, reference, idempotency_key }`. Bank needs a reference of at least 3 characters. The same user, key, and payload returns the original payment. A different payload with that key is `409`. |
+| GET, POST | `/finance/payments/` | Finance creates `{ invoice, amount, method, reference, idempotency_key }`. The key is required. Bank needs a reference of at least 3 characters. The same user, key, and payload returns the original payment with `replayed: true`. A different payload with that key is `409`. |
 | GET | `/finance/installments/` | Scoped |
 | POST | `/finance/installments/plan/` | Finance. `{ invoice, installments: [{ due_date, amount }], replace }`. `replace` archives an unpaid plan. A plan that already has a payment cannot be replaced. |
 | GET, POST | `/finance/scholarships/` | Finance creates `{ name, scholarship_type, value, description }`. `scholarship_type` is `percentage` or `fixed`. |
@@ -118,7 +118,11 @@ The super admin financial-report list defaults to reports already sent. Pass `?s
 | --- | --- | --- |
 | GET | `/permissions/catalog/` | Super admin and center manager |
 | GET | `/permissions/effective/` | Signed in. Optional `center` for the super admin. |
-| GET, POST | `/permissions/overrides/` | Super admin, or a manager for their own center. Protected duties cannot be denied. Body `{ role, code, allowed, center }`. |
+| GET, POST | `/permissions/overrides/` | Super admin, or a manager for their own center. Protected duties cannot be denied. Body `{ role, code, allowed, center, reason }`. The reason is at least 5 characters. The next request sees the change; the access token is not a permission cache. |
+| POST | `/permissions/preview/` | Same editors. Returns the effect and closed routes without writing. |
+| GET | `/permissions/matrix/` | Super admin, or a manager for their centre. All five roles. |
+| GET | `/permissions/history/` | Versions, actor, and reason. |
+| POST | `/permissions/restore/` | `{ version, reason }` writes a new version with the previous value. |
 | GET | `/notifications/` | Signed in. Own notices only. |
 | POST | `/notifications/read-all/` and `/notifications/<id>/read/` | The recipient |
 | GET | `/settings/global/history/` and `/centers/<id>/settings/history/` | People who can read those settings |
@@ -135,7 +139,9 @@ The super admin financial-report list defaults to reports already sent. Pass `?s
 | POST | `/enrollments/decide-withdrawal/` | Manager `{ id, approve, note }`. Approval does not cancel the invoice. |
 | POST | `/enrollments/<id>/complete/` | Manager, after the course end date |
 
-Attendance correction `PATCH /attendance/records/<id>/` accepts `{ status, reason }`. The reason is required for the manager and must be at least 5 characters. A teacher is still refused.
+Attendance correction `PATCH /attendance/records/<id>/` accepts `{ status, reason }`. The reason is required for the manager and must be at least 5 characters. A teacher is still refused. `POST /attendance/correction-requests/` lets that teacher ask for a change. The mark stays until `POST /attendance/decide-correction/`.
+
+`GET /settings/effective/` returns each rule with `configured`, `inherited`, `effective`, `source`, and `effect`. Self-enrollment and waitlist and refund requests use global-allows AND centre-enables. Approval uses global-requires OR centre-requires. The installment limit is the minimum of 3, the global cap, and the centre cap. A currency label other than AFN is rejected.
 
 ## Errors
 

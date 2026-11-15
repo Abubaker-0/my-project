@@ -121,3 +121,32 @@ class PermissionOverride(TimeStampedModel):
                 name='unique_center_permission_override',
             ),
         ]
+
+
+class PermissionChange(TimeStampedModel):
+    """One version of a permission restriction. Older versions are not edited."""
+
+    version = models.PositiveIntegerField(unique=True)
+    actor = models.ForeignKey(
+        'accounts.User',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='permission_changes',
+    )
+    reason = models.CharField(max_length=240)
+    role = models.CharField(max_length=32)
+    code = models.CharField(max_length=64)
+    center = models.ForeignKey(
+        'centers.Center',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='permission_changes',
+    )
+    previous_allowed = models.BooleanField()
+    allowed = models.BooleanField()
+    details = models.JSONField(default=dict)
+
+    class Meta:
+        ordering = ['-version']

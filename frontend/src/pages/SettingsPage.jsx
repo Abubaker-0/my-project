@@ -47,13 +47,18 @@ function GlobalSettings() {
         <Field label={t('common.organization')}><Input value={values.organization_name || ''} onChange={(event) => setValues({ ...values, organization_name: event.target.value })} /></Field>
         <Field label={t('common.supportEmail')}><Input value={values.support_email || ''} onChange={(event) => setValues({ ...values, support_email: event.target.value })} /></Field>
         <Field label={t('common.supportPhone')}><Input value={values.support_phone || ''} onChange={(event) => setValues({ ...values, support_phone: event.target.value })} /></Field>
-        <Field label={t('common.currency')}><Input value={values.currency_label || ''} onChange={(event) => setValues({ ...values, currency_label: event.target.value })} /></Field>
+        <Field label={t('common.currency')}><Input value="AFN" disabled /></Field>
+        <label className="check"><input type="checkbox" checked={values.allow_self_enrollment} onChange={(event) => setValues({ ...values, allow_self_enrollment: event.target.checked })} /> {t('common.selfEnrollCeiling')}</label>
+        <label className="check"><input type="checkbox" checked={values.require_enrollment_approval} onChange={(event) => setValues({ ...values, require_enrollment_approval: event.target.checked })} /> {t('common.approvalRequired')}</label>
+        <label className="check"><input type="checkbox" checked={values.allow_waitlist} onChange={(event) => setValues({ ...values, allow_waitlist: event.target.checked })} /> {t('common.waitlistCeiling')}</label>
+        <label className="check"><input type="checkbox" checked={values.allow_student_refund_requests} onChange={(event) => setValues({ ...values, allow_student_refund_requests: event.target.checked })} /> {t('common.studentRefunds')}</label>
+        <label className="check"><input type="checkbox" checked={values.allow_finance_refund_requests} onChange={(event) => setValues({ ...values, allow_finance_refund_requests: event.target.checked })} /> {t('common.financeRefunds')}</label>
         <Field label={t('common.maxInstallments')}>
           <Select value={values.max_installments} onChange={(event) => setValues({ ...values, max_installments: Number(event.target.value) })}>
             <option value={1}>1</option><option value={2}>2</option><option value={3}>3</option>
           </Select>
         </Field>
-        <label className="check"><input type="checkbox" checked={values.default_allow_self_enrollment} onChange={(event) => setValues({ ...values, default_allow_self_enrollment: event.target.checked })} /> {t('common.selfEnroll')}</label>
+        <label className="check"><input type="checkbox" checked={values.default_allow_self_enrollment} onChange={(event) => setValues({ ...values, default_allow_self_enrollment: event.target.checked })} /> {t('common.selfEnrollDefault')}</label>
         <div className="row-actions wide"><Button type="submit">{t('common.save')}</Button></div>
       </form>
     </Card>
@@ -86,6 +91,9 @@ function CenterSettings({ centerId }) {
       }}>
         <label className="check"><input type="checkbox" disabled={!editable} checked={values.allow_self_enrollment} onChange={(event) => setValues({ ...values, allow_self_enrollment: event.target.checked })} /> {t('common.selfEnroll')}</label>
         <label className="check"><input type="checkbox" disabled={!editable} checked={values.require_enrollment_approval} onChange={(event) => setValues({ ...values, require_enrollment_approval: event.target.checked })} /> {t('common.approval')}</label>
+        <label className="check"><input type="checkbox" disabled={!editable} checked={values.allow_waitlist} onChange={(event) => setValues({ ...values, allow_waitlist: event.target.checked })} /> {t('common.waitlistCeiling')}</label>
+        <label className="check"><input type="checkbox" disabled={!editable} checked={values.allow_student_refund_requests} onChange={(event) => setValues({ ...values, allow_student_refund_requests: event.target.checked })} /> {t('common.studentRefunds')}</label>
+        <label className="check"><input type="checkbox" disabled={!editable} checked={values.allow_finance_refund_requests} onChange={(event) => setValues({ ...values, allow_finance_refund_requests: event.target.checked })} /> {t('common.financeRefunds')}</label>
         <Field label={t('common.maxInstallments')}>
           <Select disabled={!editable} value={values.max_installments} onChange={(event) => setValues({ ...values, max_installments: Number(event.target.value) })}>
             <option value={1}>1</option><option value={2}>2</option><option value={3}>3</option>
@@ -93,6 +101,27 @@ function CenterSettings({ centerId }) {
         </Field>
         {editable ? <Button type="submit">{t('common.save')}</Button> : null}
       </form>
+      <PolicyFacts centerId={centerId} />
     </Card>
+  );
+}
+
+function PolicyFacts({ centerId }) {
+  const { t } = useTranslation();
+  const [rules, setRules] = useState(null);
+  useEffect(() => {
+    const path = centerId ? `/settings/effective/?center=${centerId}` : '/settings/effective/';
+    client.get(path).then((response) => setRules(unwrap(response).rules)).catch(() => setRules(null));
+  }, [centerId]);
+  if (!rules) return null;
+  return (
+    <div style={{ marginTop: 16 }}>
+      <h3>{t('common.effectivePolicy')}</h3>
+      {Object.entries(rules).filter(([key]) => key !== 'defaults').map(([key, rule]) => (
+        <p key={key}>
+          <strong>{key}</strong>: {String(rule.effective)} · {rule.source} · {rule.effect}
+        </p>
+      ))}
+    </div>
   );
 }

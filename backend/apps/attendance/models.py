@@ -70,3 +70,29 @@ class AttendanceCorrection(TimeStampedModel):
     new_status = models.CharField(max_length=10)
     reason = models.TextField()
     actor = models.ForeignKey('accounts.User', on_delete=models.PROTECT, related_name='attendance_corrections')
+
+
+class AttendanceCorrectionRequest(TimeStampedModel):
+    """A teacher asks the manager to correct a submitted mark. The mark stays until approval."""
+
+    PENDING = 'pending'
+    APPROVED = 'approved'
+    REJECTED = 'rejected'
+
+    record = models.ForeignKey(AttendanceRecord, on_delete=models.CASCADE, related_name='correction_requests')
+    requested_status = models.CharField(max_length=10)
+    reason = models.TextField()
+    status = models.CharField(max_length=16, default=PENDING)
+    requested_by = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.PROTECT,
+        related_name='attendance_correction_requests',
+    )
+    decided_by = models.ForeignKey(
+        'accounts.User',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='attendance_correction_decisions',
+    )
+    decision_note = models.CharField(max_length=240, blank=True)

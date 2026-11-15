@@ -16,7 +16,6 @@ from rest_framework.views import APIView
 from apps.accounts.models import User
 from apps.accounts.serializers import ProfileUpdateSerializer, UserSerializer
 from apps.accounts.services import set_profile_photo, update_own_profile
-from apps.common.access import assert_same_center
 from apps.common.choices import Role
 
 
@@ -56,11 +55,13 @@ class ProfilePhotoView(APIView):
 
     def get(self, request, user_id):
         target = get_object_or_404(User.objects.select_related('profile', 'center'), pk=user_id)
-        if request.user.role != Role.SUPER_ADMIN and request.user.id != target.id:
-            if not target.center_id:
-                assert_same_center(request.user, None, request)
-            else:
-                assert_same_center(request.user, target.center_id, request)
+        viewer = request.user
+        allowed = viewer.id == target.id or viewer.role == Role.SUPER_ADMIN
+        if viewer.role == Role.CENTER_MANAGER and viewer.center_id and viewer.center_id == target.center_id:
+            allowed = True
+        if not allowed:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You cannot view this photo.')
         from apps.accounts.models import Profile
 
         try:

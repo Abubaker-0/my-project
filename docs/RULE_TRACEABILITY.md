@@ -22,10 +22,15 @@
 | Withdrawal does not void the invoice | `decide_withdrawal` | `test_withdrawal_keeps_the_invoice` |
 | Completion is not an open enrollment and waits for the course end | `complete_enrollment` | service rule; UI posts to `/enrollments/{id}/complete/` |
 | Report snapshot frozen; return needs a new revision | `return_report`, `revise_report` | `test_returned_report_needs_a_new_revision` |
-| Super admin official list defaults to sent reports | `FinancialReportViewSet.get_queryset` | not separately asserted |
+| Super admin official list defaults to sent reports | `FinancialReportViewSet.get_queryset` | `test_super_admin_does_not_see_draft_reports_by_default` |
 | Protected separation of duties cannot be disabled | `set_permission_override` | `test_protected_permission_cannot_be_denied` |
 | Export and report preparation can be narrowed | `has_permission` | `test_export_honors_a_global_restriction` |
 | Policy save keeps a version and does not rewrite invoices | `record_policy` | `test_policy_save_keeps_a_version` |
 | Integrity dashboard is read-only and super admin only | `integrity_report`, `IntegrityView` | `test_integrity_is_read_only_for_super_admin` |
 | Contract alerts are in-app and idempotent | `notify_contract_expirations` | unique `dedupe_key`; command not run on MySQL |
-| Students do not receive another student's email, phone, or photo | `UserBriefSerializer.to_representation` | not separately asserted |
+| Students do not receive another student's email, phone, or photo | `UserBriefSerializer.to_representation`, `ProfilePhotoView` | `test_privacy_and_scope` |
+| Report preparation denial covers create, submit, and revise | `create_financial_report`, `submit_report`, `revise_report` | `test_report_preparation_denial_blocks_every_prepare_route` |
+| Payment key is required and retries reuse it | `record_payment` | `test_payment_key_is_required` and the MariaDB idempotency races |
+| Policy formulas and AFN label | `resolve_policy` | `test_policy_resolution_and_afn_label` |
+| Eligible manager and contract renewal | `assert_operational`, `assign_manager` | contract lifecycle tests in `test_controls` |
+| Two seats, payments, refunds, and promotions cannot both commit | row locks and unique keys | `test_concurrency` on MariaDB; skipped on SQLite |

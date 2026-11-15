@@ -55,13 +55,11 @@ def refresh_invoice_status(invoice):
 
 
 def installment_cap(center):
-    """The smaller of the global cap, the center cap, and the hard maximum of 3."""
+    """The smaller of the product cap, the global cap, and the center cap."""
 
-    from apps.centers.models import GlobalSettings
+    from apps.centers.policy import resolve_policy
 
-    global_cap = GlobalSettings.load().max_installments
-    local_cap = center.settings.max_installments
-    return max(1, min(3, global_cap, local_cap))
+    return resolve_policy(center)['installment_limit']['effective']
 
 
 def _finance(actor, center, request):
@@ -294,40 +292,57 @@ def record_payment(*, invoice, amount, method, actor, reference='', paid_at=None
     if invoice.status in (InvoiceStatus.CANCELLED, InvoiceStatus.REFUNDED):
         raise BusinessRuleError('This invoice cannot accept payments.')
     key = (idempotency_key or '').strip()
+    if not key:
+        raise BusinessRuleError('Each payment needs an idempotency key. Retry the same payment with the same key.')
     reference = (reference or '').strip()
+
+    def _same(existing):
+        return (
+            existing.invoice_id == invoice.id
+            and money(existing.amount) == amount
+            and existing.method == method
+            and existing.reference == reference
+        )
+
+    def _replay(existing):
+        if not _same(existing):
+            raise ConflictError('This idempotency key was already used for a different payment.')
+        existing._replayed = True
+        return existing
+
     with transaction.atomic():
+        # Lock the actor so two retries cannot both pass the existence check.
+        # The unique key is the backstop on MySQL and on MariaDB.
+        type(actor).objects.select_for_update().get(pk=actor.pk)
         invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
-        if key:
-            existing = Payment.objects.filter(received_by=actor, idempotency_key=key).first()
-            if existing:
-                same = (
-                    existing.invoice_id == invoice.id
-                    and money(existing.amount) == amount
-                    and existing.method == method
-                    and existing.reference == reference
-                )
-                if not same:
-                    raise ConflictError('This idempotency key was already used for a different payment.')
-                return existing
+        existing = Payment.objects.filter(received_by=actor, idempotency_key=key).first()
+        if existing:
+            return _replay(existing)
         if amount > invoice.outstanding:
             raise BusinessRuleError('Payment exceeds the outstanding balance.')
         import uuid
-        payment = Payment.objects.create(
-            invoice=invoice,
-            center=invoice.center,
-            student=invoice.student,
-            amount=amount,
-            method=method,
-            reference=reference,
-            receipt_number=f'RCP-{uuid.uuid4().hex[:12].upper()}',
-            idempotency_key=key,
-            paid_at=paid_at or timezone.now(),
-            received_by=actor,
-        )
+        try:
+            with transaction.atomic():
+                payment = Payment.objects.create(
+                    invoice=invoice,
+                    center=invoice.center,
+                    student=invoice.student,
+                    amount=amount,
+                    method=method,
+                    reference=reference,
+                    receipt_number=f'RCP-{uuid.uuid4().hex[:12].upper()}',
+                    idempotency_key=key or None,
+                    paid_at=paid_at or timezone.now(),
+                    received_by=actor,
+                )
+        except IntegrityError:
+            existing = Payment.objects.get(received_by=actor, idempotency_key=key)
+            return _replay(existing)
         invoice.paid_amount = money(invoice.paid_amount + amount)
         refresh_invoice_status(invoice)
         invoice.save()
         _allocate(invoice, amount)
+        payment._replayed = False
     write_audit(
         request,
         'payment.create',
@@ -351,24 +366,33 @@ def request_refund(*, invoice, amount, reason, actor, request=None):
         _finance(actor, invoice.center, request)
     else:
         raise PermissionDenied('Only a student or the finance manager can request a refund.')
+    from apps.centers.policy import resolve_policy
+
+    policy = resolve_policy(invoice.center)
+    if actor.role == Role.STUDENT and not policy['student_refund_requests']['effective']:
+        raise BusinessRuleError('Students cannot request refunds under the current policy.')
+    if actor.role == Role.FINANCE_MANAGER and not policy['finance_refund_requests']['effective']:
+        raise BusinessRuleError('Finance cannot request refunds under the current policy.')
     amount = money(amount)
     if amount <= 0:
         raise BusinessRuleError('Refund amount must be greater than zero.')
     if len((reason or '').strip()) < 5:
         raise BusinessRuleError('Explain the refund in at least 5 characters.')
-    pending = Refund.objects.filter(invoice=invoice, status=RefundStatus.PENDING).aggregate(total=Sum('amount'))['total'] or 0
-    refundable = money(invoice.paid_amount - invoice.refunded_amount - pending)
-    if amount > refundable:
-        raise BusinessRuleError('Refund exceeds the amount available to return.')
-    refund = Refund.objects.create(
-        invoice=invoice,
-        center=invoice.center,
-        student=invoice.student,
-        amount=amount,
-        reason=reason.strip(),
-        status=RefundStatus.PENDING,
-        requested_by=actor,
-    )
+    with transaction.atomic():
+        invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
+        pending = Refund.objects.filter(invoice=invoice, status=RefundStatus.PENDING).aggregate(total=Sum('amount'))['total'] or 0
+        refundable = money(invoice.paid_amount - invoice.refunded_amount - pending)
+        if amount > refundable:
+            raise BusinessRuleError('Refund exceeds the amount available to return.')
+        refund = Refund.objects.create(
+            invoice=invoice,
+            center=invoice.center,
+            student=invoice.student,
+            amount=amount,
+            reason=reason.strip(),
+            status=RefundStatus.PENDING,
+            requested_by=actor,
+        )
     write_audit(request, 'refund.request', f'Refund requested on {invoice.invoice_number}.', user=actor, center=invoice.center, entity='refund', entity_id=refund.id)
     from apps.common.notifications import notify
     notify(

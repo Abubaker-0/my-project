@@ -182,11 +182,12 @@ class BusinessRuleTests(APITestCase):
         invoice_id = self.client.get('/api/finance/invoices/').data['results'][0]['id']
         self.client.force_authenticate(self.finance)
         payment = self.client.post('/api/finance/payments/', {
-            'invoice': invoice_id, 'amount': '100.00', 'method': 'card',
+            'invoice': invoice_id, 'amount': '100.00', 'method': 'card', 'idempotency_key': 'card-attempt',
         }, format='json')
         self.assertEqual(payment.status_code, 400, payment.data)
         bank = self.client.post('/api/finance/payments/', {
             'invoice': invoice_id, 'amount': '100.00', 'method': 'bank', 'reference': '1',
+            'idempotency_key': 'bank-short',
         }, format='json')
         self.assertEqual(bank.status_code, 400, bank.data)
 
@@ -332,7 +333,7 @@ class BusinessRuleTests(APITestCase):
         }, format='json')
         self.assertEqual(too_many.status_code, 400, too_many.data)
         paid = self.client.post('/api/finance/payments/', {
-            'invoice': invoice_id, 'amount': '300.00', 'method': 'cash',
+            'invoice': invoice_id, 'amount': '300.00', 'method': 'cash', 'idempotency_key': 'cash-300',
         }, format='json')
         self.assertEqual(paid.status_code, 201, paid.data)
         refund = self.client.post('/api/finance/refunds/', {

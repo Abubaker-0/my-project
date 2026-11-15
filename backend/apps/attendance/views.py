@@ -13,7 +13,8 @@ from apps.attendance.serializers import (
     CorrectAttendanceSerializer,
     MarkAttendanceSerializer,
 )
-from apps.attendance.services import correct_attendance, mark_attendance
+from apps.attendance.models import AttendanceCorrectionRequest
+from apps.attendance.services import correct_attendance, decide_correction, mark_attendance, request_correction
 from apps.classes.models import CourseClass
 from apps.common.choices import EnrollmentStatus, Role
 from apps.common.exceptions import BusinessRuleError
@@ -99,6 +100,52 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
             request=request,
         )
         return Response(AttendanceSerializer(self.get_queryset().get(pk=session.pk)).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get', 'post'], url_path='correction-requests')
+    def correction_requests(self, request):
+        if request.method == 'GET':
+            rows = AttendanceCorrectionRequest.objects.select_related('record', 'requested_by')
+            user = request.user
+            if user.role == Role.TEACHER:
+                rows = rows.filter(requested_by=user)
+            elif user.role == Role.CENTER_MANAGER:
+                rows = rows.filter(record__session__center_id=user.center_id)
+            elif user.role == Role.SUPER_ADMIN:
+                pass
+            else:
+                rows = rows.none()
+            return Response([
+                {
+                    'id': row.id,
+                    'record': row.record_id,
+                    'requested_status': row.requested_status,
+                    'reason': row.reason,
+                    'status': row.status,
+                    'requested_by': row.requested_by.username,
+                }
+                for row in rows
+            ])
+        record = AttendanceRecord.objects.filter(pk=request.data.get('record_id')).select_related('session', 'session__course_class', 'session__center').first()
+        if record is None:
+            raise BusinessRuleError('Attendance record was not found.')
+        row = request_correction(
+            record,
+            request.data.get('status'),
+            request.user,
+            request.data.get('reason', ''),
+            request,
+        )
+        return Response({'id': row.id, 'status': row.status}, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['post'], url_path='decide-correction')
+    def decide_correction_action(self, request):
+        row = AttendanceCorrectionRequest.objects.filter(pk=request.data.get('id')).select_related(
+            'record', 'record__session', 'record__session__center', 'record__session__course_class',
+        ).first()
+        if row is None:
+            raise BusinessRuleError('Correction request was not found.')
+        decided = decide_correction(row, request.user, bool(request.data.get('approve')), request.data.get('note', ''), request)
+        return Response({'id': decided.id, 'status': decided.status})
 
     @action(detail=False, methods=['get'], url_path='my')
     def my_records(self, request):

@@ -94,6 +94,22 @@ export function AttendancePage() {
                   {t(`common.${status}`)}
                 </label>
               ))}
+              {roster.submitted && user.role === 'teacher' && row.record_id ? (
+                <Button variant="ghost" onClick={async () => {
+                  const reason = window.prompt(t('common.correctionRequest'));
+                  if (!reason) return;
+                  try {
+                    await client.post('/attendance/correction-requests/', {
+                      record_id: row.record_id,
+                      status: marks[row.student.id] || (row.status === 'present' ? 'absent' : 'present'),
+                      reason,
+                    });
+                    toast(t('common.saved'), 'success');
+                  } catch (err) {
+                    toast(errorMessage(err), 'danger');
+                  }
+                }}>{t('common.requestCorrection')}</Button>
+              ) : null}
             </div>
           ))}
           {!roster.students.length ? <p className="muted">{t('common.empty')}</p> : null}

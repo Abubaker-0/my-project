@@ -48,10 +48,12 @@ class WorkflowTests(APITestCase):
         self.client.force_authenticate(self.admin)
         denied = self.client.post('/api/permissions/overrides/', {
             'role': 'finance_manager', 'code': 'finance.refund_decide', 'allowed': False,
+            'reason': 'This duty stays with the center manager.',
         }, format='json')
         self.assertEqual(denied.status_code, 400, denied.data)
         narrowed = self.client.post('/api/permissions/overrides/', {
             'role': 'finance_manager', 'code': 'exports.invoices', 'allowed': False,
+            'reason': 'Finance should not export this month.',
         }, format='json')
         self.assertEqual(narrowed.status_code, 200, narrowed.data)
         self.client.force_authenticate(self.finance)
@@ -94,7 +96,9 @@ class WorkflowTests(APITestCase):
             'invoice': invoice.id, 'amount': '100.00', 'method': 'cash', 'idempotency_key': 'pay-1',
         }, format='json')
         self.assertEqual(first.status_code, 201, first.data)
-        self.assertEqual(second.status_code, 201, second.data)
+        self.assertFalse(first.data['replayed'])
+        self.assertEqual(second.status_code, 200, second.data)
+        self.assertTrue(second.data['replayed'])
         self.assertEqual(first.data['id'], second.data['id'])
         self.assertEqual(invoice.payments.count(), 1)
         clash = self.client.post('/api/finance/payments/', {
@@ -191,8 +195,8 @@ class WorkflowTests(APITestCase):
         self.assertEqual(history.status_code, 200, history.data)
         self.assertEqual(history.data[0]['payload']['max_installments'], 2)
         effective = self.client.get('/api/settings/effective/')
-        self.assertEqual(effective.data['center']['max_installments'], 2)
-        self.assertIn('Issued invoices', effective.data['prospective'])
+        self.assertEqual(effective.data['rules']['installment_limit']['effective'], 2)
+        self.assertIn('existing plan', effective.data['rules']['installment_limit']['effect'])
 
     def test_integrity_dashboard_is_super_admin_only(self):
         self.client.force_authenticate(self.manager)

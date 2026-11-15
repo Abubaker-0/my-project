@@ -53,13 +53,29 @@ class Center(SoftDeleteModel):
 
         prefetched = getattr(self, '_prefetched_manager', None)
         if prefetched is not None:
-            contract = prefetched[0] if prefetched else None
+            from django.utils import timezone
+
+            today = timezone.localdate()
+            contract = next((
+                row for row in prefetched
+                if row.user.is_active and row.start_date <= today <= row.end_date
+            ), None)
             return contract.user if contract else None
         from apps.accounts.models import Contract
 
+        from django.utils import timezone
+
+        today = timezone.localdate()
         contract = (
             Contract.objects.select_related('user', 'user__profile')
-            .filter(center=self, status='active', active_manager_lock=self.id)
+            .filter(
+                center=self,
+                status='active',
+                active_manager_lock=self.id,
+                user__is_active=True,
+                start_date__lte=today,
+                end_date__gte=today,
+            )
             .first()
         )
         return contract.user if contract else None
@@ -71,6 +87,9 @@ class CenterSettings(TimeStampedModel):
     center = models.OneToOneField(Center, on_delete=models.CASCADE, related_name='settings')
     allow_self_enrollment = models.BooleanField(default=True)
     require_enrollment_approval = models.BooleanField(default=False)
+    allow_waitlist = models.BooleanField(default=True)
+    allow_student_refund_requests = models.BooleanField(default=True)
+    allow_finance_refund_requests = models.BooleanField(default=True)
     # Hard product cap is 3. The global setting can lower it further.
     max_installments = models.PositiveSmallIntegerField(default=3)
 
@@ -98,9 +117,14 @@ class GlobalSettings(TimeStampedModel):
     organization_name = models.CharField(max_length=180, default='Course Tuition Center MIS')
     support_email = models.EmailField(blank=True)
     support_phone = models.CharField(max_length=20, blank=True)
-    # Display label only. The system does not convert currencies.
+    # Display label only. Amounts are AFN and this value cannot be changed.
     currency_label = models.CharField(max_length=12, default='AFN')
     default_allow_self_enrollment = models.BooleanField(default=True)
+    allow_self_enrollment = models.BooleanField(default=True)
+    require_enrollment_approval = models.BooleanField(default=False)
+    allow_waitlist = models.BooleanField(default=True)
+    allow_student_refund_requests = models.BooleanField(default=True)
+    allow_finance_refund_requests = models.BooleanField(default=True)
     max_installments = models.PositiveSmallIntegerField(default=3)
 
     class Meta:
@@ -112,8 +136,14 @@ class GlobalSettings(TimeStampedModel):
             ),
         ]
 
+    def clean(self):
+        if (self.currency_label or '').strip().upper() != 'AFN':
+            raise ValidationError('Amounts are AFN. The currency label cannot name another currency.')
+        self.currency_label = 'AFN'
+
     def save(self, *args, **kwargs):
         self.pk = 1
+        self.currency_label = 'AFN'
         super().save(*args, **kwargs)
 
     @classmethod

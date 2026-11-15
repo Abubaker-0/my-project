@@ -22,6 +22,7 @@ from apps.centers.serializers import (
     CenterWriteSerializer,
     GlobalSettingsSerializer,
 )
+from apps.common.exceptions import BusinessRuleError
 from apps.centers.services import (
     archive_center,
     assign_manager,
@@ -126,7 +127,10 @@ class CenterViewSet(viewsets.ModelViewSet):
             return Response(CenterSettingsSerializer(settings_obj).data)
         serializer = CenterSettingsSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        updated = update_center_settings(settings_obj, serializer.validated_data, request.user, request)
+        payload = dict(serializer.validated_data)
+        if request.data.get('note'):
+            payload['note'] = request.data.get('note')
+        updated = update_center_settings(settings_obj, payload, request.user, request)
         return Response(CenterSettingsSerializer(updated).data)
 
     @action(detail=True, methods=['get'], url_path='settings/history')
@@ -169,7 +173,10 @@ class GlobalSettingsView(APIView):
     def patch(self, request):
         serializer = GlobalSettingsSerializer(data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        updated = update_global_settings(serializer.validated_data, request.user)
+        payload = dict(serializer.validated_data)
+        if request.data.get('note'):
+            payload['note'] = request.data.get('note')
+        updated = update_global_settings(payload, request.user)
         return Response(GlobalSettingsSerializer(updated).data)
 
 
@@ -190,24 +197,19 @@ class EffectivePolicyView(APIView):
 
     def get(self, request):
         from apps.centers.models import PolicyRevision
-        global_settings = GlobalSettings.load()
+        from apps.centers.policy import resolve_policy
+
+        center = request.user.center
+        center_id = request.query_params.get('center')
+        if center_id and request.user.role == Role.SUPER_ADMIN:
+            center = Center.objects.filter(pk=center_id).first()
+        if center is None:
+            raise BusinessRuleError('Choose a center to read its effective policy.')
         latest_global = PolicyRevision.objects.filter(scope='global', center__isnull=True).order_by('-version').first()
-        payload = {
-            'global': {
-                'currency_label': global_settings.currency_label,
-                'max_installments': global_settings.max_installments,
-                'default_allow_self_enrollment': global_settings.default_allow_self_enrollment,
-                'version': latest_global.version if latest_global else 0,
-            },
-            'prospective': 'Policy changes apply to new plans and enrollments. Issued invoices and frozen reports stay as they were.',
-        }
-        if request.user.center_id:
-            settings_obj = request.user.center.settings
-            latest = PolicyRevision.objects.filter(scope='center', center_id=request.user.center_id).order_by('-version').first()
-            payload['center'] = {
-                'allow_self_enrollment': settings_obj.allow_self_enrollment,
-                'require_enrollment_approval': settings_obj.require_enrollment_approval,
-                'max_installments': settings_obj.max_installments,
-                'version': latest.version if latest else 0,
-            }
-        return Response(payload)
+        latest_center = PolicyRevision.objects.filter(scope='center', center=center).order_by('-version').first()
+        return Response({
+            'center_id': center.id,
+            'global_version': latest_global.version if latest_global else 0,
+            'center_version': latest_center.version if latest_center else 0,
+            'rules': resolve_policy(center),
+        })

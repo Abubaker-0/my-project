@@ -9,7 +9,10 @@ from apps.centers.models import Center, CenterSettings, GlobalSettings
 class CenterSettingsSerializer(serializers.ModelSerializer):
     class Meta:
         model = CenterSettings
-        fields = ('allow_self_enrollment', 'require_enrollment_approval', 'max_installments')
+        fields = (
+            'allow_self_enrollment', 'require_enrollment_approval', 'allow_waitlist',
+            'allow_student_refund_requests', 'allow_finance_refund_requests', 'max_installments',
+        )
 
 
 class GlobalSettingsSerializer(serializers.ModelSerializer):
@@ -17,7 +20,9 @@ class GlobalSettingsSerializer(serializers.ModelSerializer):
         model = GlobalSettings
         fields = (
             'organization_name', 'support_email', 'support_phone', 'currency_label',
-            'default_allow_self_enrollment', 'max_installments',
+            'default_allow_self_enrollment', 'allow_self_enrollment', 'require_enrollment_approval',
+            'allow_waitlist', 'allow_student_refund_requests', 'allow_finance_refund_requests',
+            'max_installments',
         )
 
 

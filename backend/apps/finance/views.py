@@ -89,9 +89,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
             reference=data.get('reference', ''),
             paid_at=data.get('paid_at'),
             request=request,
-            idempotency_key=data.get('idempotency_key', ''),
+            idempotency_key=data['idempotency_key'],
         )
-        return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
+        body = PaymentSerializer(payment).data
+        replayed = bool(getattr(payment, '_replayed', False))
+        body['replayed'] = replayed
+        return Response(body, status=status.HTTP_200_OK if replayed else status.HTTP_201_CREATED)
 
     @action(detail=True, methods=['get'])
     def receipt(self, request, pk=None):

@@ -126,9 +126,13 @@ def assert_student_free(student, course_class):
 
 
 def _store_schedules(course_class, slots):
+    from apps.accounts.models import User
+
     assert_batch_slots(slots)
     created = []
+    User.objects.select_for_update().filter(pk=course_class.teacher_id).exists()
     for slot in slots:
+        Classroom.objects.select_for_update().filter(pk=slot['classroom'].pk).exists()
         assert_slot_available(
             course=course_class.course,
             teacher=course_class.teacher,

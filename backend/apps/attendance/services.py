@@ -21,10 +21,14 @@ from apps.enrollments.models import Enrollment
 def eligible_roster(course_class, day):
     """Students who held an active seat on `day`, not merely whoever is active now."""
 
+    from datetime import datetime, time, timedelta
+
+    # Compare instants in Python so MySQL does not need loaded timezone tables.
+    next_day = timezone.make_aware(datetime.combine(day + timedelta(days=1), time.min))
     rows = []
     enrollments = Enrollment.objects.filter(
         course_class=course_class,
-        created_at__date__lte=day,
+        created_at__lt=next_day,
     ).exclude(status__in=(EnrollmentStatus.REJECTED, EnrollmentStatus.PENDING))
     for enrollment in enrollments:
         if enrollment.status == EnrollmentStatus.ACTIVE:
@@ -134,3 +138,75 @@ def correct_attendance(record, status, actor, reason, request=None):
         entity_id=record.id,
     )
     return record
+
+
+def request_correction(record, status, actor, reason, request=None):
+    """Teacher asks for a correction. The stored mark does not change yet."""
+
+    from apps.attendance.models import AttendanceCorrectionRequest
+    from apps.common.permissions_catalog import has_permission
+
+    session = record.session
+    if actor.role != Role.TEACHER or session.course_class.teacher_id != actor.id:
+        raise PermissionDenied('Only the teacher of this class can request a correction.')
+    if not has_permission(actor, 'attendance.request_correction', session.center):
+        raise PermissionDenied('Correction requests are restricted for this center.')
+    assert_same_center(actor, session.center, request)
+    assert_operational(actor)
+    if not session.is_submitted:
+        raise BusinessRuleError('Attendance has not been submitted yet.')
+    if status not in (AttendanceStatus.PRESENT, AttendanceStatus.ABSENT):
+        raise BusinessRuleError('Attendance status must be present or absent.')
+    reason = (reason or '').strip()
+    if len(reason) < 5:
+        raise BusinessRuleError('A correction request needs a reason of at least 5 characters.')
+    if record.status == status:
+        raise BusinessRuleError('The mark is already set to that status.')
+    if AttendanceCorrectionRequest.objects.filter(record=record, status=AttendanceCorrectionRequest.PENDING).exists():
+        raise ConflictError('A correction request is already waiting for this mark.')
+    row = AttendanceCorrectionRequest.objects.create(
+        record=record,
+        requested_status=status,
+        reason=reason,
+        requested_by=actor,
+    )
+    from apps.common.notifications import notify
+    notify(
+        session.center.get_active_manager(),
+        'attendance',
+        'Attendance correction requested',
+        f'{actor.username} asked to change a mark to {status}.',
+        dedupe_key=f'attendance-correction:{row.id}',
+    )
+    write_audit(
+        request,
+        'attendance.correction_request',
+        f'Correction requested for record {record.id}.',
+        user=actor,
+        center=session.center,
+        entity='attendance_record',
+        entity_id=record.id,
+    )
+    return row
+
+
+def decide_correction(row, actor, approve, note='', request=None):
+    """Manager approval applies the requested mark. Rejection leaves it unchanged."""
+
+    from apps.attendance.models import AttendanceCorrectionRequest
+
+    if actor.role != Role.CENTER_MANAGER:
+        raise PermissionDenied('Only the center manager can decide a correction request.')
+    assert_same_center(actor, row.record.session.center, request)
+    assert_operational(actor)
+    if row.status != AttendanceCorrectionRequest.PENDING:
+        raise ConflictError('This correction request has already been decided.')
+    if approve:
+        correct_attendance(row.record, row.requested_status, actor, row.reason, request)
+        row.status = AttendanceCorrectionRequest.APPROVED
+    else:
+        row.status = AttendanceCorrectionRequest.REJECTED
+    row.decided_by = actor
+    row.decision_note = (note or '').strip()
+    row.save()
+    return row

@@ -130,6 +130,9 @@ class ClassViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['get'])
     def students(self, request, pk=None):
+        if request.user.role in (Role.STUDENT, Role.FINANCE_MANAGER):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('You cannot read this class roster.')
         course_class = self.get_object()
         enrollments = Enrollment.objects.filter(course_class=course_class, status=EnrollmentStatus.ACTIVE).select_related('student', 'student__profile')
         return Response(UserBriefSerializer(

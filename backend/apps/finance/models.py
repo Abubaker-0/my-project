@@ -100,7 +100,7 @@ class Payment(TimeStampedModel):
     method = models.CharField(max_length=10, choices=PaymentMethod.choices)
     reference = models.CharField(max_length=80, blank=True)
     receipt_number = models.CharField(max_length=40, unique=True, null=True, blank=True)
-    idempotency_key = models.CharField(max_length=80, blank=True, default='')
+    idempotency_key = models.CharField(max_length=80, null=True, blank=True)
     paid_at = models.DateTimeField(default=timezone.now)
     received_by = models.ForeignKey(
         'accounts.User',
@@ -119,7 +119,6 @@ class Payment(TimeStampedModel):
             ),
             models.UniqueConstraint(
                 fields=['received_by', 'idempotency_key'],
-                condition=~models.Q(idempotency_key=''),
                 name='unique_payment_idempotency',
             ),
         ]

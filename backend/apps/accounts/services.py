@@ -92,6 +92,8 @@ def assert_operational(user):
         raise BusinessRuleError('Your center is inactive.')
     if user.role != Role.STUDENT and active_contract_for(user) is None:
         raise BusinessRuleError('Your contract is not active.')
+    if center.get_active_manager() is None:
+        raise BusinessRuleError('This center has no eligible manager.')
 
 
 def _check_password(password, user=None):
