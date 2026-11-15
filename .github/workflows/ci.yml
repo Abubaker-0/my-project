@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: tuition_db
+          MARIADB_USER: tuition_app
+          MARIADB_PASSWORD: change_me_strong
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      SECRET_KEY: ci-secret-key-ci-secret-key-ci-secret
+      APP_ENV: test
+      START_SCHEDULER: "false"
+      SEED_ADMIN_EMAIL: admin@tuition.example
+      SEED_ADMIN_PASSWORD: Admin@12345
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install API dependencies
+        run: pip install -r backend/requirements-dev.txt
+      - name: Check style
+        working-directory: backend
+        run: ruff check app tests alembic && black --check app tests alembic
+      - name: Apply migrations on MariaDB
+        working-directory: backend
+        env:
+          DATABASE_URL: mysql+pymysql://tuition_app:change_me_strong@127.0.0.1:3306/tuition_db?charset=utf8mb4
+        run: alembic upgrade head
+      - name: Test services and endpoints
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite://
+        run: pytest
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install web dependencies
+        working-directory: frontend
+        run: npm install
+      - name: Test, lint, and build
+        working-directory: frontend
+        run: npm test && npm run lint && npm run build

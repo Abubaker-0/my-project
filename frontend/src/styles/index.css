@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
+  body {
+    @apply bg-paper font-sans text-ink-950 antialiased;
+  }
+
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-pine-600;
+  }
+}
+
+@layer components {
+  .field {
+    @apply w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink-950 shadow-sm placeholder:text-ink-500;
+  }
+
+  .field[aria-invalid="true"] {
+    @apply border-danger;
+  }
+}
