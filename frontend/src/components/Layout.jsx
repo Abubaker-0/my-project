@@ -1,23 +1,33 @@
-/** Authenticated shell: sidebar, top bar, and the current page. */
+/** Authenticated shell shared by every role. */
 import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
-import { NAV } from '../nav';
+import { pageKey } from '../nav';
+
+const COLLAPSE = 'ctcms-sidebar';
 
 export function Layout() {
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE) === '1');
   const { pathname } = useLocation();
   const { t } = useTranslation();
-  const match = NAV.find((item) => item.to !== '/' && pathname.startsWith(item.to));
-  const title = pathname === '/' ? t('nav.dashboard') : t(`nav.${match?.key || 'dashboard'}`);
+  const title = t(`nav.${pageKey(pathname)}`);
   return (
-    <div className="app-shell">
+    <div className={`app-shell${collapsed ? ' collapsed' : ''}`}>
       {open ? <div className="drawer-backdrop" onClick={() => setOpen(false)} /> : null}
-      <Sidebar open={open} onNavigate={() => setOpen(false)} />
+      <Sidebar
+        open={open}
+        collapsed={collapsed}
+        onNavigate={() => setOpen(false)}
+        onToggleCollapse={() => setCollapsed((value) => {
+          localStorage.setItem(COLLAPSE, value ? '0' : '1');
+          return !value;
+        })}
+      />
       <div className="main">
-        <Topbar title={title} onMenu={() => setOpen(true)} />
+        <Topbar title={title} onMenu={() => setOpen((value) => !value)} />
         <main className="content">
           <Outlet />
         </main>

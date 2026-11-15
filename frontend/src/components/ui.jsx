@@ -72,7 +72,9 @@ export function TimePicker({ label, ...props }) {
 const TONE = {
   active: 'success', inactive: 'warning', expired: 'warning', terminated: 'danger',
   pending: 'warning', approved: 'success', rejected: 'danger', paid: 'success',
+  partial: 'info', unpaid: 'warning',
   partially_paid: 'info', overdue: 'danger', refunded: 'info', issued: 'info',
+  completed: 'success', withdrawn: 'warning',
   draft: 'warning', submitted_to_manager: 'info', sent_to_super_admin: 'success',
   present: 'success', absent: 'danger', cancelled: 'danger', dropped: 'warning',
 };
@@ -193,7 +195,7 @@ export function Card({ children, className = '' }) {
 export function StatCard({ label, value, icon }) {
   return (
     <article className="stat">
-      <div className="icon">{icon}</div>
+      {icon ? <div className="icon">{icon}</div> : null}
       <div className="label">{label}</div>
       <div className="value">{value}</div>
     </article>

@@ -1,14 +1,30 @@
 {
-  "appName": "Tuition MIS",
+  "appName": "PohanaHub",
+  "brandSub": "Learning Management",
   "tagline": "Centers, classes, and fees in one place",
   "login": {
     "title": "Sign in",
     "subtitle": "Use the account your center issued.",
+    "kicker": "Tuition Centre MIS",
+    "welcome": "Welcome back.",
+    "lead": "Sign in to your workspace to continue managing what matters.",
     "username": "Username or email",
+    "usernamePlaceholder": "you@yourcentre.com",
     "password": "Password",
-    "submit": "Sign in",
-    "forgot": "Forgot password",
-    "demo": "Demo accounts",
+    "passwordPlaceholder": "Enter your password",
+    "show": "Show password",
+    "hide": "Hide password",
+    "remember": "Remember me",
+    "submit": "Sign in securely",
+    "forgot": "Forgot password?",
+    "secure": "Secure access",
+    "note": "One secure login for all five roles. Your dashboard is chosen after authentication.",
+    "pill": "Your centre. One connected workspace.",
+    "heroTitle": "A brighter way\nto manage\nlearning.",
+    "heroText": "Every class, student, schedule and financial workflow — thoughtfully organized in one secure platform.",
+    "footer": "Built for education, designed for clarity.",
+    "lamp": "Toggle decorative lamp",
+    "demo": "Local demo accounts",
     "fill": "Fill"
   },
   "forgot": {
@@ -42,7 +58,8 @@
     "refunds": "Refunds",
     "reports": "Reports",
     "settings": "Settings",
-    "profile": "Profile"
+    "profile": "Profile",
+    "forbidden": "Access denied"
   },
   "roles": {
     "super_admin": "Super Admin",
@@ -238,7 +255,11 @@
     "cancelled": "Cancelled",
     "dropped": "Dropped",
     "paid": "Paid",
+    "partial": "Partial",
+    "unpaid": "Unpaid",
     "partially_paid": "Partially paid",
+    "completed": "Completed",
+    "withdrawn": "Withdrawn",
     "overdue": "Overdue",
     "refunded": "Refunded",
     "issued": "Issued",
@@ -284,6 +305,64 @@
     "fee": "Fee must be greater than zero",
     "capacity": "Capacity must be at least 1",
     "reason": "Explain the request in at least 5 characters"
+  },
+  "group": {
+    "overview": "Overview",
+    "organisation": "Organisation",
+    "academic": "Academic",
+    "finance": "Finance",
+    "system": "System"
+  },
+  "shell": {
+    "workspace": "Workspace",
+    "menu": "Main menu",
+    "collapse": "Collapse sidebar",
+    "notifications": "Activity",
+    "emptyNotes": "No activity to show",
+    "system": "Use system theme",
+    "foot": "Designed for everyday clarity"
+  },
+  "palette": {
+    "evergreen": "Evergreen Academic",
+    "sapphire": "Sapphire Modern",
+    "indigo": "Royal Indigo"
+  },
+  "dash": {
+    "morning": "Good morning, {{name}}.",
+    "afternoon": "Good afternoon, {{name}}.",
+    "evening": "Good evening, {{name}}.",
+    "chart": "Collected by month",
+    "activity": "Recent activity",
+    "registrations": "Recent registrations",
+    "centres": "Centres",
+    "rateFoot": "From recorded attendance",
+    "eyebrow": {
+      "super_admin": "Organization overview",
+      "center_manager": "Centre overview",
+      "finance_manager": "Finance overview",
+      "teacher": "Teaching overview",
+      "student": "Student overview"
+    },
+    "lead": {
+      "super_admin": "A clear view of centres, people, and collections you are allowed to see.",
+      "center_manager": "Admissions, courses, classes, and attendance for your centre.",
+      "finance_manager": "Invoices, collections, and outstanding balances for your centre.",
+      "teacher": "Your classes, today's meetings, and attendance you recorded.",
+      "student": "Your courses, attendance, and what you still owe."
+    },
+    "foot": {
+      "centers": "Centres on record",
+      "students": "Active students in scope",
+      "teachers": "Active teachers in scope",
+      "courses": "Courses in scope",
+      "classes": "Class sections",
+      "collected": "Cash and bank received",
+      "outstanding": "Still to collect",
+      "refunds": "Waiting for a decision",
+      "overdue": "Past the due date",
+      "present": "Marks recorded",
+      "absent": "Marks recorded"
+    }
   },
   "pages": {
     "centers": "Centers",

@@ -2,6 +2,15 @@
  * Sidebar entries. A link is shown only when the signed-in role is listed.
  * The API still rejects a request that slips past this menu.
  */
+/** Groups keep the menu readable. Items still come from NAV and the user's role. */
+export const NAV_GROUPS = [
+  { id: 'overview', label: 'group.overview', keys: ['dashboard'] },
+  { id: 'organisation', label: 'group.organisation', keys: ['centers', 'users', 'students', 'teachers', 'contracts'] },
+  { id: 'academic', label: 'group.academic', keys: ['courses', 'availableCourses', 'myCourses', 'classes', 'schedule', 'enrollments', 'attendance'] },
+  { id: 'finance', label: 'group.finance', keys: ['finance', 'payments', 'installments', 'scholarships', 'refunds', 'reports'] },
+  { id: 'system', label: 'group.system', keys: ['settings'] },
+];
+
 export const NAV = [
   { to: '/', key: 'dashboard', icon: 'LayoutDashboard', roles: ['super_admin', 'center_manager', 'finance_manager', 'teacher', 'student'] },
   { to: '/centers', key: 'centers', icon: 'Building2', roles: ['super_admin'] },
@@ -24,3 +33,15 @@ export const NAV = [
   { to: '/reports', key: 'reports', icon: 'BarChart3', roles: ['super_admin', 'center_manager', 'finance_manager'] },
   { to: '/settings', key: 'settings', icon: 'Settings', roles: ['super_admin', 'center_manager'] },
 ];
+
+/** Longest matching route wins, so /courses never captures /courses/1's siblings. */
+export function pageKey(pathname) {
+  if (!pathname || pathname === '/') return 'dashboard';
+  if (pathname === '/profile' || pathname.startsWith('/profile/')) return 'profile';
+  if (pathname === '/forbidden' || pathname.startsWith('/forbidden/')) return 'forbidden';
+  const match = NAV
+    .filter((item) => item.to !== '/')
+    .sort((a, b) => b.to.length - a.to.length)
+    .find((item) => pathname === item.to || pathname.startsWith(`${item.to}/`));
+  return match?.key || 'dashboard';
+}

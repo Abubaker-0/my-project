@@ -14,11 +14,11 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
 import { ToastViewport } from './components/Toast';
+import { applyAppearance, PALETTE_KEY, THEME_KEY } from './theme';
 import './i18n';
 import './styles/global.css';
 
-const storedTheme = localStorage.getItem('ctcms-theme') || 'light';
-document.documentElement.dataset.theme = storedTheme;
+applyAppearance(localStorage.getItem(THEME_KEY) || 'light', localStorage.getItem(PALETTE_KEY) || 'evergreen');
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
