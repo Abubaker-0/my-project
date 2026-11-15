@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { seatSummary } from "./format";
+import { calendarDay, seatSummary } from "./format";
+
+describe("calendarDay", () => {
+  it("maps Monday to FullCalendar's Monday and Sunday to its Sunday", () => {
+    expect(calendarDay(0)).toBe(1);
+    expect(calendarDay(6)).toBe(0);
+  });
+});
 
 describe("seatSummary", () => {
   it("mentions the waitlist only when someone is waiting", () => {

@@ -1,8 +1,8 @@
 # Tuition Center Management Information System
 
-Phase 1 adds the academic record: campuses, years and terms, rooms, subjects, courses, batches, students, guardians, documents, inquiries, and enrollment with a capacity and a waitlist. It sits on the Phase 0 sign-in, role permissions, branch scope, and audit trail.
+Phase 2 adds the weekly timetable, bulk attendance, fee plans, invoices, payments, PDF receipts, and the finance and today dashboards. It sits on the Phase 1 academic record and the Phase 0 sign-in, role permissions, branch scope, and audit trail.
 
-Later phases add the timetable, attendance, fees, exams, payroll, and the parent portal.
+Later phases add exams, payroll, and the parent portal.
 
 ## Layout
 
@@ -21,8 +21,8 @@ The API is mounted at `/api/v1`. Interactive docs are at `http://127.0.0.1:8000/
 - The browser keeps the access token in memory and sends the refresh token as an HttpOnly cookie scoped to `/api/v1/auth`. The JSON login response also includes the refresh token for scripts and tests. The web app does not store it.
 - Business audit rows (login, create, update, delete, permission changes, password changes) are written by the service inside the same transaction. Middleware only attaches the request id, client IP, and user agent. `X-Forwarded-For` is ignored unless `TRUST_PROXY=true`.
 - Passwords use argon2. Five failures lock the account for 15 minutes. Login and reset routes are rate limited per IP in the API process.
-- Money columns, when they arrive, use `DECIMAL(12,2)`. This phase has no money yet. The helper is `app.db.types.MONEY`.
-- The seed loads permissions, the eight system roles, the Main Campus branch, and one super admin. Outside production it also loads the 2026-2027 year, four courses, four batches, 30 students (`MAIN-2026-0001` onward), and the teacher `maya.iqbal@tuition.example` / `Teacher@12345`. A second seed skips that sample once the first admission number exists. System roles other than Super Admin are not rewritten on a later seed.
+- Money columns use `DECIMAL(12,2)` and are returned as strings with two decimal places. The helper is `app.db.types.MONEY`.
+- The seed loads permissions, the eight system roles, the Main Campus branch, and one super admin. Outside production it also loads the 2026-2027 year, four courses, four batches, 30 students (`MAIN-2026-0001` onward), and the teacher `maya.iqbal@tuition.example` / `Teacher@12345`. A second seed skips that sample once the first admission number exists. The operations sample is separate: it adds a weekly timetable, the fee plan "Monthly tuition", three invoices (`MAIN-INV-0001` overdue, `MAIN-INV-0002` partial, `MAIN-INV-0003` paid), and the accountant `leila.hassan@tuition.example` / `Account@12345`. It skips the fee plan when that name already exists, and still adds a Sunday Math slot through 31 December 2026 when that slot is missing. System roles other than Super Admin are not rewritten on a later seed.
 
 ## XAMPP on Windows
 
@@ -105,6 +105,15 @@ Pytest uses SQLite so it does not need MySQL. `alembic upgrade head` is the chec
 - Student documents stay on local disk under `UPLOAD_DIR` (default `backend/var/uploads`), at most 5 MB, and only PDF, JPEG, PNG, or WebP.
 - Changing a student's campus withdraws open seats. A guardian moves with the student only when that guardian has no other child still at the old campus.
 
+## Phase 2 rules
+
+- A class session needs a room or a teacher, and both must belong to the batch's campus. The teacher must already be assigned to that batch. Sessions are allowed only on planned or active batches. Weekdays are Monday `0` through Sunday `6`.
+- The same room or the same teacher cannot hold two scheduled sessions whose dates and times overlap. Touching boundaries (`10:00` after a slot that ends at `10:00`) are allowed. Cancelling a session keeps the row and frees the room and the teacher. Overlap is checked in the application with row locks; MariaDB has no exclusion constraints.
+- Attendance is one sheet per batch and date. Marks are saved in bulk and only for students with an active seat. Omitted students keep their previous mark. A teacher who is not assigned to the batch gets the same not-found response as a missing batch.
+- An invoice balance is `total − sum(completed payments)`. Status becomes `paid` when the balance is zero, `partial` when some of it is paid, `issued` when nothing is paid and the due date is still ahead, and `overdue` when nothing is paid and the due date has passed. A partial invoice stays `partial` after the due date; the finance dashboard still counts that remaining balance as overdue money.
+- Invoices and payments are never hard-deleted. Cancel an invoice with a reason only after every completed payment is voided. A voided payment stays on the invoice. A fee plan can be removed only when no invoice uses it.
+- `POST /payments` requires an `Idempotency-Key` header of 8–80 characters. The same key and the same invoice, amount, and method return the original payment. The same key with a different body returns `409 IDEMPOTENCY_CONFLICT`. `GET /payments/{id}/receipt` returns a one-page PDF.
+
 ## API surface
 
 | Method | Path | Permission |
@@ -154,9 +163,24 @@ Pytest uses SQLite so it does not need MySQL. `alembic upgrade head` is the chec
 | POST | `/api/v1/enrollments/{id}/transfer` | `enrollment:transfer` |
 | POST | `/api/v1/enrollments/{id}/complete` | `enrollment:update` |
 | GET | `/api/v1/audit-logs` | `audit:read` |
+| GET, POST | `/api/v1/timetable/sessions` | `timetable:read`, `timetable:create` |
+| PATCH | `/api/v1/timetable/sessions/{id}` | `timetable:update` |
+| POST | `/api/v1/timetable/sessions/{id}/cancel` | `timetable:delete` |
+| GET | `/api/v1/attendance/sheets` | `attendance:read` |
+| PUT | `/api/v1/attendance/sheets` | `attendance:mark` |
+| GET, POST | `/api/v1/fee-plans` | `fees:read`, `fees:create` |
+| GET, PATCH, DELETE | `/api/v1/fee-plans/{id}` | `fees:read`, `fees:update`, `fees:delete` |
+| GET, POST | `/api/v1/invoices` | `invoices:read`, `invoices:create` |
+| GET | `/api/v1/invoices/{id}` | `invoices:read` |
+| POST | `/api/v1/invoices/{id}/cancel` | `invoices:cancel` |
+| POST | `/api/v1/payments` | `payments:create`, `Idempotency-Key` header |
+| POST | `/api/v1/payments/{id}/void` | `payments:void` |
+| GET | `/api/v1/payments/{id}/receipt` | `payments:read` |
+| GET | `/api/v1/dashboard/finance` | `reports:read` |
+| GET | `/api/v1/dashboard/today` | `timetable:read` |
 
 Lists accept `page`, `page_size` (max 100), `sort` (prefix `-` for descending), and `q`. Errors use `{ "code", "message", "details" }`. Send `X-Branch-Id` to narrow a list to one campus you already can access. The branch list itself ignores that header so the switcher can still show every campus you may pick.
 
 ## What is next
 
-Phase 2: the weekly timetable, bulk attendance, fee plans, invoices, payments with an idempotency key, PDF receipts, and the admin and accountant dashboards.
+Phase 3: assessments, marks that cannot exceed the assessment maximum, published results that stay locked until a coordinator reopens them, and the teacher gradebook.
