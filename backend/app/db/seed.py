@@ -1,7 +1,4 @@
-"""Idempotent seed for roles, permissions, the main branch, and a super admin.
-
-Sample courses and students are created in the next phase, once those tables exist.
-"""
+"""Idempotent seed for roles, permissions, the main branch, a super admin, and sample records."""
 
 from __future__ import annotations
 
@@ -14,6 +11,7 @@ from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.security import hash_password, validate_password_strength
 from app.db.catalog import PERMISSIONS, ROLE_DEFINITIONS
+from app.db.sample_data import seed_samples
 from app.db.session import get_session_factory
 from app.models.branch import Branch
 from app.models.rbac import Permission, Role, UserRole
@@ -33,8 +31,10 @@ def seed(session: Session) -> None:
     validate_password_strength(settings.seed_admin_password)
     permissions = _sync_permissions(session)
     roles = _sync_roles(session, permissions)
-    _sync_branch(session)
-    _sync_admin(session, roles["super_admin"])
+    branch = _sync_branch(session)
+    admin = _sync_admin(session, roles["super_admin"])
+    if not get_settings().is_production:
+        seed_samples(session, branch, admin)
     session.commit()
     logger.info("Seed complete")
 

@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     seed_admin_email: str = "admin@tuition.example"
     seed_admin_password: str = "Admin@12345"
     seed_admin_name: str = "System Administrator"
+    upload_dir: str = ""
+    max_upload_bytes: int = 5_242_880
 
     model_config = SettingsConfigDict(
         env_file=str(ENV_FILE) if ENV_FILE.exists() else None,
@@ -64,6 +66,13 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def upload_path(self) -> Path:
+        """Directory for student documents. Relative paths stay inside the backend tree."""
+        raw = self.upload_dir.strip()
+        path = Path(raw) if raw else BACKEND_DIR / "var" / "uploads"
+        return path if path.is_absolute() else BACKEND_DIR / path
 
 
 @lru_cache

@@ -40,5 +40,8 @@ api.interceptors.request.use((config) => {
   if (branchId) {
     config.headers["X-Branch-Id"] = String(branchId);
   }
+  if (typeof FormData !== "undefined" && config.data instanceof FormData) {
+    delete config.headers["Content-Type"];
+  }
   return config;
 });

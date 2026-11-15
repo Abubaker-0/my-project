@@ -24,7 +24,7 @@ export function Sidebar() {
         />
       ) : null}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex flex-col bg-ink-950 text-paper transition-transform md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 flex h-screen flex-col bg-ink-950 text-paper transition-transform md:static md:h-screen md:shrink-0 md:translate-x-0 ${
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         } ${collapsed ? "md:w-20" : "w-64"}`}
       >
@@ -41,7 +41,7 @@ export function Sidebar() {
             </div>
           )}
         </div>
-        <nav className="flex-1 space-y-1 px-3 py-2" aria-label="Primary">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-2" aria-label="Primary">
           {items.map((item) => (
             <NavLink
               key={item.to}
@@ -62,7 +62,7 @@ export function Sidebar() {
         </nav>
         {collapsed ? null : (
           <p className="px-4 pb-4 text-xs leading-5 text-ink-500">
-            Phase 0 covers sign-in, roles, and the audit trail. Academic records follow.
+            Admissions, courses, and enrollment sit on the same permissions and audit trail.
           </p>
         )}
       </aside>
