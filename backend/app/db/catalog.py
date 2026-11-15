@@ -231,6 +231,8 @@ ROLE_DEFINITIONS: dict[str, tuple[str, str, set[str]]] = {
             "guardians:read",
             "guardians:create",
             "guardians:update",
+            "documents:read",
+            "documents:create",
             "payments:read",
             "payments:create",
             "invoices:read",

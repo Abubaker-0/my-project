@@ -4,8 +4,22 @@ import { AuditPage } from "../features/audit/AuditPage";
 import { ForgotPasswordPage } from "../features/auth/ForgotPasswordPage";
 import { LoginPage } from "../features/auth/LoginPage";
 import { ResetPasswordPage } from "../features/auth/ResetPasswordPage";
+import { BatchDetailPage } from "../features/batches/BatchDetailPage";
+import { BatchesPage } from "../features/batches/BatchesPage";
+import { CourseDetailPage } from "../features/courses/CourseDetailPage";
+import { CoursesPage } from "../features/courses/CoursesPage";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
+import { InquiryDetailPage } from "../features/inquiries/InquiryDetailPage";
+import { InquiriesPage } from "../features/inquiries/InquiriesPage";
+import { AcademicYearsPage } from "../features/organization/AcademicYearsPage";
+import { BranchDetailPage } from "../features/organization/BranchDetailPage";
+import { BranchesPage } from "../features/organization/BranchesPage";
+import { RoomDetailPage } from "../features/organization/RoomDetailPage";
+import { RoomsPage } from "../features/organization/RoomsPage";
+import { YearDetailPage } from "../features/organization/YearDetailPage";
 import { RolesPage } from "../features/roles/RolesPage";
+import { StudentDetailPage } from "../features/students/StudentDetailPage";
+import { StudentsPage } from "../features/students/StudentsPage";
 import { ForbiddenPage } from "../features/system/ForbiddenPage";
 import { NotFoundPage } from "../features/system/NotFoundPage";
 import { UsersPage } from "../features/users/UsersPage";
@@ -22,6 +36,118 @@ export function AppRoutes() {
       <Route element={<RequireAuth />}>
         <Route element={<AppLayout />}>
           <Route index element={<DashboardPage />} />
+          <Route
+            path="inquiries"
+            element={
+              <RequirePermission permission="inquiries:read">
+                <InquiriesPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="inquiries/:inquiryId"
+            element={
+              <RequirePermission permission="inquiries:read">
+                <InquiryDetailPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="students"
+            element={
+              <RequirePermission permission="students:read">
+                <StudentsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="students/:studentId"
+            element={
+              <RequirePermission permission="students:read">
+                <StudentDetailPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="courses"
+            element={
+              <RequirePermission permission="courses:read">
+                <CoursesPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="courses/:courseId"
+            element={
+              <RequirePermission permission="courses:read">
+                <CourseDetailPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="batches"
+            element={
+              <RequirePermission permission="batches:read">
+                <BatchesPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="batches/:batchId"
+            element={
+              <RequirePermission permission="batches:read">
+                <BatchDetailPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="academic-years"
+            element={
+              <RequirePermission permission="academic_years:read">
+                <AcademicYearsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="academic-years/:yearId"
+            element={
+              <RequirePermission permission="academic_years:read">
+                <YearDetailPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="rooms"
+            element={
+              <RequirePermission permission="rooms:read">
+                <RoomsPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="rooms/:roomId"
+            element={
+              <RequirePermission permission="rooms:read">
+                <RoomDetailPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="branches"
+            element={
+              <RequirePermission permission="branches:read">
+                <BranchesPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="branches/:branchId"
+            element={
+              <RequirePermission permission="branches:read">
+                <BranchDetailPage />
+              </RequirePermission>
+            }
+          />
           <Route
             path="users"
             element={

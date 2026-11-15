@@ -13,8 +13,20 @@ export function Badge({ tone = "neutral", children }) {
   );
 }
 
+const GOOD = new Set(["active", "converted", "completed", "paid"]);
+const WARN = new Set([
+  "waitlisted",
+  "planned",
+  "new",
+  "contacted",
+  "qualified",
+  "partial",
+  "locked",
+  "suspended",
+]);
+
 export function statusTone(status) {
-  if (status === "active") return "good";
-  if (status === "locked") return "warn";
+  if (GOOD.has(status)) return "good";
+  if (WARN.has(status)) return "warn";
   return "bad";
 }

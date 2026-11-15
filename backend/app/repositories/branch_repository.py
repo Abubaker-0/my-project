@@ -1,8 +1,8 @@
-"""Branch queries. Writes arrive with the organization module."""
+"""Branch queries."""
 
 from __future__ import annotations
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 
 from app.domain.actor import BranchScope
 from app.models.branch import Branch
@@ -25,3 +25,23 @@ class BranchRepository(Repository):
         stmt = select(Branch).where(Branch.id == branch_id, Branch.deleted_at.is_(None))
         stmt = apply_branch_scope(stmt, Branch.id, scope)
         return self.session.scalar(stmt)
+
+    def get_by_code(self, code: str) -> Branch | None:
+        stmt = select(Branch).where(
+            func.upper(Branch.code) == code.upper(),
+            Branch.deleted_at.is_(None),
+        )
+        return self.session.scalar(stmt)
+
+    def student_count(self, branch_id: int) -> int:
+        from app.models.people import Student
+
+        stmt = (
+            select(func.count())
+            .select_from(Student)
+            .where(
+                Student.branch_id == branch_id,
+                Student.deleted_at.is_(None),
+            )
+        )
+        return int(self.session.scalar(stmt) or 0)

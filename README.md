@@ -1,8 +1,8 @@
 # Tuition Center Management Information System
 
-Phase 0 is the foundation: a FastAPI service with MariaDB, signed-in users, role permissions, an audit trail, and a React shell that keeps the access token in memory and the refresh token in an HttpOnly cookie.
+Phase 1 adds the academic record: campuses, years and terms, rooms, subjects, courses, batches, students, guardians, documents, inquiries, and enrollment with a capacity and a waitlist. It sits on the Phase 0 sign-in, role permissions, branch scope, and audit trail.
 
-Later phases add students, classes, fees, exams, payroll, and the parent portal. They sit on the same branch scope, permission checks, and audit log.
+Later phases add the timetable, attendance, fees, exams, payroll, and the parent portal.
 
 ## Layout
 
@@ -22,7 +22,7 @@ The API is mounted at `/api/v1`. Interactive docs are at `http://127.0.0.1:8000/
 - Business audit rows (login, create, update, delete, permission changes, password changes) are written by the service inside the same transaction. Middleware only attaches the request id, client IP, and user agent. `X-Forwarded-For` is ignored unless `TRUST_PROXY=true`.
 - Passwords use argon2. Five failures lock the account for 15 minutes. Login and reset routes are rate limited per IP in the API process.
 - Money columns, when they arrive, use `DECIMAL(12,2)`. This phase has no money yet. The helper is `app.db.types.MONEY`.
-- Sample courses and the 30 sample students are not in this phase. Those tables do not exist yet. The seed loads permissions, the eight system roles, the Main Campus branch, and one super admin.
+- The seed loads permissions, the eight system roles, the Main Campus branch, and one super admin. Outside production it also loads the 2026-2027 year, four courses, four batches, 30 students (`MAIN-2026-0001` onward), and the teacher `maya.iqbal@tuition.example` / `Teacher@12345`. A second seed skips that sample once the first admission number exists. System roles other than Super Admin are not rewritten on a later seed.
 
 ## XAMPP on Windows
 
@@ -97,7 +97,15 @@ npm run build
 
 Pytest uses SQLite so it does not need MySQL. `alembic upgrade head` is the check that the migration runs on MariaDB.
 
-## API surface in this phase
+## Phase 1 rules
+
+- An open enrollment is `active` while the batch has a free seat, otherwise `waitlisted` with the next position. Withdrawing an active seat promotes the earliest waitlisted student when the batch is still planned or active. Two open seats for the same student in one batch are rejected by a generated column.
+- A teacher sees students and enrollments only for assigned batches. A parent sees only linked children. Those limits are a union when one account has both roles.
+- An inquiry becomes `converted` only through `POST /inquiries/{id}/convert`. A lost lead has to be reopened first.
+- Student documents stay on local disk under `UPLOAD_DIR` (default `backend/var/uploads`), at most 5 MB, and only PDF, JPEG, PNG, or WebP.
+- Changing a student's campus withdraws open seats. A guardian moves with the student only when that guardian has no other child still at the old campus.
+
+## API surface
 
 | Method | Path | Permission |
 | --- | --- | --- |
@@ -119,11 +127,36 @@ Pytest uses SQLite so it does not need MySQL. `alembic upgrade head` is the chec
 | PUT | `/api/v1/roles/{id}/permissions` | `permissions:assign` |
 | DELETE | `/api/v1/roles/{id}` | `roles:delete` |
 | GET | `/api/v1/permissions` | `permissions:read` |
-| GET | `/api/v1/branches` | `branches:read` |
+| GET, POST | `/api/v1/branches` | `branches:read`, `branches:create` |
+| GET, PATCH, DELETE | `/api/v1/branches/{id}` | `branches:read`, `branches:update`, `branches:delete` |
+| GET, POST | `/api/v1/academic-years` | `academic_years:read`, `academic_years:create` |
+| GET, PATCH, DELETE | `/api/v1/academic-years/{id}` | `academic_years:read`, `academic_years:update`, `academic_years:delete` |
+| POST | `/api/v1/academic-years/{id}/terms` | `academic_years:update` |
+| GET, POST | `/api/v1/rooms` | `rooms:read`, `rooms:create` |
+| GET, PATCH, DELETE | `/api/v1/rooms/{id}` | `rooms:read`, `rooms:update`, `rooms:delete` |
+| GET, POST | `/api/v1/subjects` | `subjects:read`, `subjects:create` |
+| PATCH, DELETE | `/api/v1/subjects/{id}` | `subjects:update`, `subjects:delete` |
+| GET, POST | `/api/v1/courses` | `courses:read`, `courses:create` |
+| GET, PATCH, DELETE | `/api/v1/courses/{id}` | `courses:read`, `courses:update`, `courses:delete` |
+| GET, POST | `/api/v1/batches` | `batches:read`, `batches:create` |
+| GET, PATCH, DELETE | `/api/v1/batches/{id}` | `batches:read`, `batches:update`, `batches:delete` |
+| POST | `/api/v1/batches/{id}/teachers` | `batches:update` |
+| GET, POST | `/api/v1/students` | `students:read`, `students:create` |
+| GET, PATCH, DELETE | `/api/v1/students/{id}` | `students:read`, `students:update`, `students:delete` |
+| POST | `/api/v1/students/{id}/guardians` | `students:update` |
+| POST | `/api/v1/students/{id}/documents` | `documents:create` |
+| GET, POST | `/api/v1/inquiries` | `inquiries:read`, `inquiries:create` |
+| GET, PATCH, DELETE | `/api/v1/inquiries/{id}` | `inquiries:read`, `inquiries:update`, `inquiries:delete` |
+| POST | `/api/v1/inquiries/{id}/followups` | `inquiries:update` |
+| POST | `/api/v1/inquiries/{id}/convert` | `inquiries:convert` |
+| GET, POST | `/api/v1/enrollments` | `enrollment:read`, `enrollment:create` |
+| POST | `/api/v1/enrollments/{id}/withdraw` | `enrollment:withdraw` |
+| POST | `/api/v1/enrollments/{id}/transfer` | `enrollment:transfer` |
+| POST | `/api/v1/enrollments/{id}/complete` | `enrollment:update` |
 | GET | `/api/v1/audit-logs` | `audit:read` |
 
 Lists accept `page`, `page_size` (max 100), `sort` (prefix `-` for descending), and `q`. Errors use `{ "code", "message", "details" }`. Send `X-Branch-Id` to narrow a list to one campus you already can access. The branch list itself ignores that header so the switcher can still show every campus you may pick.
 
 ## What is next
 
-Phase 1: branches (write), academic years, rooms, students, guardians, documents, inquiries with conversion, courses, batches, and enrollment with capacity and a waitlist. That phase also seeds sample courses and 30 students.
+Phase 2: the weekly timetable, bulk attendance, fee plans, invoices, payments with an idempotency key, PDF receipts, and the admin and accountant dashboards.
