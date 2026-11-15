@@ -1,9 +1,13 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
+import { AttendancePage } from "../features/attendance/AttendancePage";
 import { AuditPage } from "../features/audit/AuditPage";
 import { ForgotPasswordPage } from "../features/auth/ForgotPasswordPage";
 import { LoginPage } from "../features/auth/LoginPage";
 import { ResetPasswordPage } from "../features/auth/ResetPasswordPage";
+import { FeesPage } from "../features/billing/FeesPage";
+import { InvoiceDetailPage } from "../features/billing/InvoiceDetailPage";
+import { InvoicesPage } from "../features/billing/InvoicesPage";
 import { BatchDetailPage } from "../features/batches/BatchDetailPage";
 import { BatchesPage } from "../features/batches/BatchesPage";
 import { CourseDetailPage } from "../features/courses/CourseDetailPage";
@@ -20,6 +24,7 @@ import { YearDetailPage } from "../features/organization/YearDetailPage";
 import { RolesPage } from "../features/roles/RolesPage";
 import { StudentDetailPage } from "../features/students/StudentDetailPage";
 import { StudentsPage } from "../features/students/StudentsPage";
+import { TimetablePage } from "../features/timetable/TimetablePage";
 import { ForbiddenPage } from "../features/system/ForbiddenPage";
 import { NotFoundPage } from "../features/system/NotFoundPage";
 import { UsersPage } from "../features/users/UsersPage";
@@ -89,6 +94,46 @@ export function AppRoutes() {
             element={
               <RequirePermission permission="batches:read">
                 <BatchesPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="timetable"
+            element={
+              <RequirePermission permission="timetable:read">
+                <TimetablePage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="attendance"
+            element={
+              <RequirePermission permission="attendance:read">
+                <AttendancePage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="fees"
+            element={
+              <RequirePermission permission="fees:read">
+                <FeesPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="invoices"
+            element={
+              <RequirePermission permission="invoices:read">
+                <InvoicesPage />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="invoices/:invoiceId"
+            element={
+              <RequirePermission permission="invoices:read">
+                <InvoiceDetailPage />
               </RequirePermission>
             }
           />

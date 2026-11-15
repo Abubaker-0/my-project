@@ -13,7 +13,7 @@ export function Badge({ tone = "neutral", children }) {
   );
 }
 
-const GOOD = new Set(["active", "converted", "completed", "paid"]);
+const GOOD = new Set(["active", "converted", "completed", "paid", "present", "scheduled"]);
 const WARN = new Set([
   "waitlisted",
   "planned",
@@ -21,6 +21,10 @@ const WARN = new Set([
   "contacted",
   "qualified",
   "partial",
+  "issued",
+  "overdue",
+  "late",
+  "excused",
   "locked",
   "suspended",
 ]);

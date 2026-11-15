@@ -14,6 +14,15 @@ from app.models.academics import (
 from app.models.audit import AuditLog
 from app.models.branch import Branch
 from app.models.enrollment import Enrollment
+from app.models.operations import (
+    AttendanceMark,
+    AttendanceSheet,
+    ClassSession,
+    FeePlan,
+    Invoice,
+    InvoiceLine,
+    Payment,
+)
 from app.models.people import (
     Guardian,
     Inquiry,
@@ -28,17 +37,24 @@ from app.models.user import User
 
 __all__ = [
     "AcademicYear",
+    "AttendanceMark",
+    "AttendanceSheet",
     "AuditLog",
+    "ClassSession",
     "Batch",
     "BatchTeacher",
     "Branch",
     "Course",
     "Enrollment",
+    "FeePlan",
     "Guardian",
     "Inquiry",
+    "Invoice",
+    "InvoiceLine",
     "InquiryFollowup",
     "NumberSequence",
     "PasswordReset",
+    "Payment",
     "Permission",
     "RefreshToken",
     "Role",

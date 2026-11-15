@@ -2,16 +2,29 @@ import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { fetchSessions } from "../../api/auth";
-import { fetchHealth } from "../../api/resources";
+import { fetchHealth, financeDashboard, todayDashboard } from "../../api/resources";
 import { Badge } from "../../components/Badge";
 import { PageHeader } from "../../components/PageHeader";
 import { Spinner } from "../../components/Spinner";
+import { usePermission } from "../../hooks/usePermission";
 import { useAuthStore } from "../../store/authStore";
-import { formatDateTime } from "../../utils/format";
+import { formatDateTime, weekdayName } from "../../utils/format";
 
 export function DashboardPage() {
   const user = useAuthStore((state) => state.user);
+  const canReadFinance = usePermission("reports:read");
+  const canReadTimetable = usePermission("timetable:read");
   const health = useQuery({ queryKey: ["health"], queryFn: fetchHealth });
+  const finance = useQuery({
+    queryKey: ["dashboard", "finance"],
+    queryFn: financeDashboard,
+    enabled: canReadFinance,
+  });
+  const today = useQuery({
+    queryKey: ["dashboard", "today"],
+    queryFn: todayDashboard,
+    enabled: canReadTimetable,
+  });
   const sessions = useQuery({ queryKey: ["sessions"], queryFn: fetchSessions });
   const counts = new Map();
   for (const code of user?.permissions ?? []) {
@@ -67,6 +80,58 @@ export function DashboardPage() {
           </p>
         </article>
       </div>
+      {canReadFinance && finance.data ? (
+        <div className="mt-4 grid gap-4 lg:grid-cols-4">
+          <Metric label="Active students" value={finance.data.active_students} />
+          <Metric label="Open invoices" value={finance.data.open_invoices} />
+          <Metric label="Overdue" value={finance.data.overdue_total} />
+          <Metric label="Collected this month" value={finance.data.collected_this_month} />
+        </div>
+      ) : null}
+      {canReadFinance && finance.data ? (
+        <article className="mt-4 rounded-2xl border border-line bg-card p-5 shadow-card">
+          <h2 className="font-serif text-2xl">Invoices by status</h2>
+          <div className="mt-4 h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={finance.data.invoice_counts}>
+                <XAxis dataKey="status" tick={{ fontSize: 12 }} />
+                <YAxis allowDecimals={false} width={28} />
+                <Tooltip />
+                <Bar dataKey="count" fill="#1f6f68" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </article>
+      ) : null}
+      {canReadTimetable ? (
+        <article className="mt-4 rounded-2xl border border-line bg-card p-5 shadow-card">
+          <h2 className="font-serif text-2xl">Today&apos;s classes</h2>
+          {today.isLoading ? <Spinner label="Loading classes" /> : null}
+          <ul className="mt-4 space-y-2 text-sm">
+            {(today.data?.sessions ?? []).length === 0 && !today.isLoading ? (
+              <li className="text-ink-700">Nothing is scheduled today.</li>
+            ) : null}
+            {(today.data?.sessions ?? []).map((session) => (
+              <li key={session.id} className="flex flex-wrap justify-between gap-2">
+                <span>
+                  {session.batch_name}
+                  {session.room_name ? ` · ${session.room_name}` : ""}
+                  {session.teacher_name ? ` · ${session.teacher_name}` : ""}
+                </span>
+                <span className="text-ink-500">
+                  {String(session.start_time).slice(0, 5)}–{String(session.end_time).slice(0, 5)}
+                  {session.attendance_marked ? " · marked" : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {today.data ? (
+            <p className="mt-3 text-xs text-ink-500">
+              {weekdayName(new Date().getDay() === 0 ? 6 : new Date().getDay() - 1)}
+            </p>
+          ) : null}
+        </article>
+      ) : null}
       <div className="mt-4 grid gap-4 lg:grid-cols-5">
         <article className="rounded-2xl border border-line bg-card p-5 shadow-card lg:col-span-3">
           <h2 className="font-serif text-2xl">Access by module</h2>
@@ -113,5 +178,14 @@ export function DashboardPage() {
         </article>
       </div>
     </div>
+  );
+}
+
+function Metric({ label, value }) {
+  return (
+    <article className="rounded-2xl border border-line bg-card p-5 shadow-card">
+      <p className="text-xs uppercase tracking-[0.14em] text-ink-500">{label}</p>
+      <p className="mt-2 font-serif text-3xl">{value}</p>
+    </article>
   );
 }

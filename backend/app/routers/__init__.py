@@ -4,15 +4,19 @@ from fastapi import APIRouter
 
 from app.routers import (
     academics,
+    attendance,
     audit,
     auth,
+    billing,
     branches,
+    dashboard,
     enrollments,
     health,
     inquiries,
     organization,
     roles,
     students,
+    timetable,
     users,
 )
 from app.schemas.common import ErrorBody
@@ -30,4 +34,10 @@ api_router.include_router(academics.router)
 api_router.include_router(students.router)
 api_router.include_router(inquiries.router)
 api_router.include_router(enrollments.router)
+api_router.include_router(timetable.router)
+api_router.include_router(attendance.router)
+api_router.include_router(billing.plans)
+api_router.include_router(billing.invoices)
+api_router.include_router(billing.payments)
+api_router.include_router(dashboard.router)
 api_router.include_router(audit.router)

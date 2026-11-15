@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.logging import setup_logging
 from app.core.security import hash_password, validate_password_strength
 from app.db.catalog import PERMISSIONS, ROLE_DEFINITIONS
+from app.db.operations_sample import seed_operations
 from app.db.sample_data import seed_samples
 from app.db.session import get_session_factory
 from app.models.branch import Branch
@@ -35,6 +36,7 @@ def seed(session: Session) -> None:
     admin = _sync_admin(session, roles["super_admin"])
     if not get_settings().is_production:
         seed_samples(session, branch, admin)
+        seed_operations(session, branch, admin)
     session.commit()
     logger.info("Seed complete")
 

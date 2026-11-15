@@ -24,6 +24,16 @@ export function formatDate(value) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(date);
 }
 
+export function calendarDay(weekday) {
+  return (Number(weekday) + 1) % 7;
+}
+
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+export function weekdayName(weekday) {
+  return WEEKDAYS[weekday] || "—";
+}
+
 export function seatSummary(active, capacity, waiting) {
   const seats = `${active} of ${capacity} seats filled`;
   return waiting ? `${seats}, ${waiting} waiting` : seats;

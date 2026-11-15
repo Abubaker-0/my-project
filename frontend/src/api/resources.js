@@ -210,3 +210,79 @@ export function createEnrollment(payload) {
 export function withdrawEnrollment(id, reason) {
   return api.post(`/enrollments/${id}/withdraw`, { reason }).then((response) => response.data);
 }
+
+export function listSessions(params) {
+  return api
+    .get("/timetable/sessions", { params: clean(params) })
+    .then((response) => response.data);
+}
+
+export function createSession(payload) {
+  return api.post("/timetable/sessions", payload).then((response) => response.data);
+}
+
+export function cancelSession(id) {
+  return api.post(`/timetable/sessions/${id}/cancel`).then((response) => response.data);
+}
+
+export function getAttendance(batchId, attendedOn) {
+  return api
+    .get("/attendance/sheets", { params: { batch_id: batchId, attended_on: attendedOn } })
+    .then((response) => response.data);
+}
+
+export function saveAttendance(payload) {
+  return api.put("/attendance/sheets", payload).then((response) => response.data);
+}
+
+export function listFeePlans(params) {
+  return api.get("/fee-plans", { params: clean(params) }).then((response) => response.data);
+}
+
+export function createFeePlan(payload) {
+  return api.post("/fee-plans", payload).then((response) => response.data);
+}
+
+export function listInvoices(params) {
+  return api.get("/invoices", { params: clean(params) }).then((response) => response.data);
+}
+
+export function getInvoice(id) {
+  return api.get(`/invoices/${id}`).then((response) => response.data);
+}
+
+export function createInvoice(payload) {
+  return api.post("/invoices", payload).then((response) => response.data);
+}
+
+export function cancelInvoice(id, reason) {
+  return api.post(`/invoices/${id}/cancel`, { reason }).then((response) => response.data);
+}
+
+export function recordPayment(payload, idempotencyKey) {
+  return api
+    .post("/payments", payload, { headers: { "Idempotency-Key": idempotencyKey } })
+    .then((response) => response.data);
+}
+
+export function voidPayment(id, reason) {
+  return api.post(`/payments/${id}/void`, { reason }).then((response) => response.data);
+}
+
+export async function downloadReceipt(paymentId, receiptNo) {
+  const response = await api.get(`/payments/${paymentId}/receipt`, { responseType: "blob" });
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${receiptNo}.pdf`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+export function financeDashboard() {
+  return api.get("/dashboard/finance").then((response) => response.data);
+}
+
+export function todayDashboard() {
+  return api.get("/dashboard/today").then((response) => response.data);
+}

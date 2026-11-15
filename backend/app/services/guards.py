@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from datetime import date, datetime
+from datetime import date, datetime, time
+from decimal import Decimal
 from typing import Any
 
 from app.core.exceptions import AppException
@@ -75,7 +76,9 @@ def snapshot(row: Any, fields: tuple[str, ...]) -> dict[str, Any]:
     values: dict[str, Any] = {}
     for name in fields:
         value = getattr(row, name)
-        if isinstance(value, datetime | date):
+        if isinstance(value, datetime | date | time):
             value = value.isoformat()
+        elif isinstance(value, Decimal):
+            value = f"{value.quantize(Decimal('0.01')):.2f}"
         values[name] = value
     return values
