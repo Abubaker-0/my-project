@@ -30,7 +30,7 @@
 | Contract alerts are in-app and idempotent | `notify_contract_expirations` | unique `dedupe_key`; command not run on MySQL |
 | Students do not receive another student's email, phone, or photo | `UserBriefSerializer.to_representation`, `ProfilePhotoView` | `test_privacy_and_scope` |
 | Report preparation denial covers create, submit, and revise | `create_financial_report`, `submit_report`, `revise_report` | `test_report_preparation_denial_blocks_every_prepare_route` |
-| Payment key is required and retries reuse it | `record_payment` | `test_payment_key_is_required` and the MariaDB idempotency races |
+| Payment key is required and retries reuse it | `record_payment` | `test_payment_key_is_required` and the idempotency races on MariaDB and MySQL 8.0.46 |
 | Policy formulas and AFN label | `resolve_policy` | `test_policy_resolution_and_afn_label` |
 | Eligible manager and contract renewal | `assert_operational`, `assign_manager` | contract lifecycle tests in `test_controls` |
-| Two seats, payments, refunds, and promotions cannot both commit | row locks and unique keys | `test_concurrency` on MariaDB; skipped on SQLite |
+| Two seats, payments, refunds, and promotions cannot both commit | row locks and unique keys | `test_concurrency` on MariaDB 10.11 and MySQL 8.0.46; skipped on SQLite |

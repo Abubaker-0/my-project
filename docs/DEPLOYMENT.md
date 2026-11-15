@@ -6,7 +6,7 @@ No production migration is authorized by the application change itself. Apply th
 
 1. Take a backup of `course_tuition_center_mis`.
 2. Put the site in maintenance mode. Stop payment, enrollment, and report writes.
-3. Confirm the database is MySQL 8. CI uses MySQL 8.0. A local MariaDB 10.11 run passed the same suite, but MariaDB does not install partial unique indexes (`models.W036`). Payment idempotency uses a normal unique key and is enforced on both. Policy, permission, waitlist, and withdrawal partial uniques are enforced by MySQL 8 and by the application checks.
+3. Confirm the database is MySQL 8. GitHub Actions run `43745296044` passed the suite on MySQL 8.0.46. A local MariaDB 10.11 run passed the same suite. Django does not install conditional unique indexes on either engine. Payment idempotency uses a normal unique key and is enforced on both. Policy versions, permission overrides, waitlist rows, and withdrawal requests rely on the application checks.
 4. Confirm `TIME_ZONE` is `Asia/Kabul`.
 5. Run `python manage.py migrate` and `python manage.py check`.
 6. Run `python manage.py check_integrity` and read the output. It does not change rows.
@@ -34,4 +34,4 @@ Roll back by restoring the database backup taken before migrate, then deploying 
 
 ## Local MariaDB note
 
-The disposable server used for verification was MariaDB 10.11.14 on `127.0.0.1:3306`, database `course_tuition_center_mis_test`, user `mis`. It was created for tests and is not a production database. MySQL 8.0 is the engine in `.github/workflows/tests.yml` and was not started on this machine.
+The disposable server used for local verification was MariaDB 10.11.14 on `127.0.0.1:3306`, database `course_tuition_center_mis_test`, user `mis`. It was created for tests and is not a production database. MySQL 8.0.46 ran in GitHub Actions, not on this machine.

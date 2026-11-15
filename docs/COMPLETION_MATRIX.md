@@ -19,7 +19,7 @@ Labels: verified means an automated test exercised the server rule. A screen or 
 | Policy resolution | `centers/policy.py` | enroll, waitlist, refunds, installment cap | settings page | `test_policy_resolution_and_afn_label` | verified |
 | AFN only | `update_global_settings` | non-AFN rejected | currency field disabled | same test; invoice net unchanged | verified |
 | Exports are a permission, not a second policy | catalog | export view | governance | export 403 after denial | verified |
-| Payment idempotency required | `record_payment` | key required, unique, row locks | dialog keeps one key | SQLite tests and MariaDB concurrency tests | MySQL 8 CI not executed here |
+| Payment idempotency required | `record_payment` | key required, unique, row locks | dialog keeps one key | SQLite, MariaDB 10.11, and MySQL 8.0.46 CI | verified |
 | Waitlist does not reserve or invoice | `join_waitlist` | no invoice | course page and manager panel | workflow test | verified |
 | Withdrawal keeps the invoice | `decide_withdrawal` | invoice untouched | my courses | workflow test | verified |
 | Completion after course end | `complete_enrollment` | date check | enrollments page | `test_completion_waits_for_the_course_end_and_leaves_history` | verified |
@@ -34,5 +34,5 @@ Labels: verified means an automated test exercised the server rule. A screen or 
 | Integrity checker is read-only | `integrity_report` | no saves | governance list | controlled bad rows, `updated_at` unchanged | verified |
 | Room capacity edit | no route | PATCH 405; enrollment rechecks current size | not offered | `test_classroom_capacity_has_no_update_route` | out of scope, not a defect |
 | Workflow screens | page components | API tests remain the authority | governance, settings, enrollment, attendance, payments, refunds, reports, notifications | 20 frontend tests | browser checks do not replace the API suite |
-| Concurrency of seats, contracts, schedules, payments, refunds, waitlist, idempotency | service locks and unique keys | final row counts | payment dialog reuses one key | 10 tests passed on MariaDB 10.11 InnoDB | MySQL 8.0 not started locally; CI job is defined |
+| Concurrency of seats, contracts, schedules, payments, refunds, waitlist, idempotency | service locks and unique keys | final row counts | payment dialog reuses one key | 10 tests passed on MariaDB 10.11 and on MySQL 8.0.46 CI | conditional unique indexes are not created; Django leaves them off for MySQL |
 | Previous application writing the new schema | migrations are additive | old app can still insert an empty payment key | n/a | migration operation test forbids deletes | rollback is restore-from-backup, documented in `docs/DEPLOYMENT.md` |
