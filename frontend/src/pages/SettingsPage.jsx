@@ -33,6 +33,7 @@ function GlobalSettings() {
   return (
     <Card>
       <h2>{t('pages.globalSettings')}</h2>
+      <p className="muted">{t('common.policyProspective')}</p>
       <form className="form-grid" style={{ marginTop: 16 }} onSubmit={async (event) => {
         event.preventDefault();
         try {

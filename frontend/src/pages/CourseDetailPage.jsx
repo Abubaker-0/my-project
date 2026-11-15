@@ -75,6 +75,16 @@ export function CourseDetailPage() {
               }
             }}>{course.remaining_capacity < 1 ? t('common.capacityFull') : t('common.enroll')}</Button>
           ) : null}
+          {user?.role === 'student' && section && course.remaining_capacity < 1 ? (
+            <Button variant="ghost" onClick={async () => {
+              try {
+                await client.post('/enrollments/waitlist/', { course_id: course.id, class_id: section.id });
+                toast(t('common.waitlistJoined'), 'success');
+              } catch (err) {
+                toast(errorMessage(err), 'danger');
+              }
+            }}>{t('common.joinWaitlist')}</Button>
+          ) : null}
         </Card>
       </div>
     </div>

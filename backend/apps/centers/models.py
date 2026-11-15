@@ -120,3 +120,39 @@ class GlobalSettings(TimeStampedModel):
     def load(cls):
         obj, _created = cls.objects.get_or_create(pk=1)
         return obj
+
+
+class PolicyRevision(TimeStampedModel):
+    """Immutable copy of a policy after each change. Older invoices are not rewritten."""
+
+    GLOBAL = 'global'
+    CENTER = 'center'
+    SCOPE_CHOICES = [(GLOBAL, 'Global'), (CENTER, 'Center')]
+
+    scope = models.CharField(max_length=16, choices=SCOPE_CHOICES)
+    center = models.ForeignKey(Center, null=True, blank=True, on_delete=models.CASCADE, related_name='policy_revisions')
+    version = models.PositiveIntegerField()
+    payload = models.JSONField(default=dict)
+    note = models.CharField(max_length=240, blank=True)
+    actor = models.ForeignKey(
+        'accounts.User',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='policy_revisions',
+    )
+
+    class Meta:
+        ordering = ['-version']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['scope', 'version'],
+                condition=models.Q(center__isnull=True),
+                name='unique_global_policy_revision',
+            ),
+            models.UniqueConstraint(
+                fields=['scope', 'center', 'version'],
+                condition=models.Q(center__isnull=False),
+                name='unique_center_policy_revision',
+            ),
+        ]

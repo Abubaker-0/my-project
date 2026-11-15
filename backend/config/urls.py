@@ -22,6 +22,7 @@ urlpatterns = [
     path('api/attendance/', include('apps.attendance.urls')),
     path('api/finance/', include('apps.finance.urls')),
     path('api/reports/', include('apps.reports.urls')),
+    path('api/', include('apps.common.governance_urls')),
 ]
 
 if settings.DEBUG:

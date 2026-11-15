@@ -6,7 +6,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import client, { errorMessage, unwrap } from '../api/client';
-import { Badge, Card, EmptyState, Loader } from '../components/ui';
+import { useToast } from '../context/ToastContext';
+import { Badge, Button, Card, EmptyState, Loader } from '../components/ui';
 import { DAYS, money, personName } from '../utils/format';
 import { usePaged } from '../hooks/usePaged';
 import { DataTable } from '../components/DataTable';
@@ -53,6 +54,7 @@ export function AvailableCoursesPage() {
 
 export function MyCoursesPage() {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const list = usePaged('/enrollments/');
   return (
     <div>
@@ -66,6 +68,19 @@ export function MyCoursesPage() {
           { key: 'source', label: t('common.type'), render: (row) => t(`common.${row.source}`) },
           { key: 'status', label: t('common.status'), render: (row) => <Badge value={row.status} label={t(`status.${row.status}`)} /> },
           { key: 'date', label: t('common.date'), render: (row) => String(row.created_at || '').slice(0, 10) },
+          { key: 'actions', label: t('common.actions'), render: (row) => row.status === 'active' ? (
+            <Button variant="ghost" onClick={async () => {
+              const reason = window.prompt(t('common.withdrawReason'));
+              if (!reason) return;
+              try {
+                await client.post(`/enrollments/${row.id}/withdraw/`, { reason });
+                toast(t('common.saved'), 'success');
+                list.reload();
+              } catch (err) {
+                toast(errorMessage(err), 'danger');
+              }
+            }}>{t('common.withdraw')}</Button>
+          ) : null },
         ]}
       />
     </div>

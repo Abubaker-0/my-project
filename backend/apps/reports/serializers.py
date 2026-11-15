@@ -14,6 +14,7 @@ class FinancialReportSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'center', 'center_name', 'title', 'period_start', 'period_end', 'status',
             'prepared_by', 'prepared_by_name', 'submitted_at', 'sent_by', 'sent_at',
+            'revision', 'previous', 'return_note', 'returned_at',
             'snapshot', 'created_at',
         )
 

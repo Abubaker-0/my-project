@@ -62,8 +62,15 @@ def active_contract_for(user):
     """Return the user's active contract after expiring lapsed ones."""
 
     refresh_expired_contracts(user)
+    today = timezone.localdate()
+    # A stored active status is not enough: a future start or a past end does not authorize work.
     return (
-        Contract.objects.filter(user=user, status=ContractStatus.ACTIVE)
+        Contract.objects.filter(
+            user=user,
+            status=ContractStatus.ACTIVE,
+            start_date__lte=today,
+            end_date__gte=today,
+        )
         .select_related('center')
         .first()
     )

@@ -37,6 +37,19 @@ class UserBriefSerializer(serializers.ModelSerializer):
     def get_photo_url(self, obj):
         return photo_url_for(obj)
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        viewer = getattr(request, 'user', None)
+        if not viewer or not getattr(viewer, 'is_authenticated', False) or viewer.id == instance.id:
+            return data
+        # Students and teachers do not receive another student's contact or photo.
+        if instance.role == Role.STUDENT and viewer.role in (Role.STUDENT, Role.TEACHER):
+            data['email'] = ''
+            data['phone'] = ''
+            data['photo_url'] = None
+        return data
+
 
 class ContractSerializer(serializers.ModelSerializer):
     """Staff contract as stored. Locks are internal and are not exposed."""

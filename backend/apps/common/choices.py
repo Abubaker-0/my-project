@@ -95,6 +95,7 @@ class RefundStatus(models.TextChoices):
 class ReportStatus(models.TextChoices):
     DRAFT = 'draft', 'Draft'
     SUBMITTED_TO_MANAGER = 'submitted_to_manager', 'Submitted to Manager'
+    RETURNED = 'returned', 'Returned'
     SENT_TO_SUPER_ADMIN = 'sent_to_super_admin', 'Sent to Super Admin'
 
 

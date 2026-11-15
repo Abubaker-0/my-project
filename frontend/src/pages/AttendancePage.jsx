@@ -24,6 +24,7 @@ export function AttendancePage() {
   const [date, setDate] = useState(todayISO());
   const [roster, setRoster] = useState(null);
   const [marks, setMarks] = useState({});
+  const [reason, setReason] = useState('');
 
   const loadRoster = async (event) => {
     event?.preventDefault();
@@ -43,7 +44,7 @@ export function AttendancePage() {
     try {
       if (roster.submitted && user.role === 'center_manager') {
         await Promise.all(roster.students.filter((row) => row.record_id).map((row) => (
-          client.patch(`/attendance/records/${row.record_id}/`, { status: marks[row.student.id] })
+          client.patch(`/attendance/records/${row.record_id}/`, { status: marks[row.student.id], reason })
         )));
       } else {
         await client.post('/attendance/mark/', {
@@ -96,6 +97,9 @@ export function AttendancePage() {
             </div>
           ))}
           {!roster.students.length ? <p className="muted">{t('common.empty')}</p> : null}
+          {roster.submitted && user.role === 'center_manager' ? (
+            <Field label={t('common.reason')}><Input value={reason} onChange={(event) => setReason(event.target.value)} /></Field>
+          ) : null}
           {roster.students.length && (!roster.submitted || user.role === 'center_manager') ? (
             <Button onClick={submit} style={{ marginTop: 14 }}>{roster.submitted ? t('common.correct') : t('common.mark')}</Button>
           ) : null}

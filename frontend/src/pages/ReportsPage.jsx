@@ -41,7 +41,16 @@ export function ReportsPage() {
           { key: 'actions', label: t('common.actions'), render: (row) => (
             <div className="row-actions">
               {finance && row.status === 'draft' ? <Button onClick={() => act(row.id, 'submit')}>{t('common.submit')}</Button> : null}
+              {finance && row.status === 'returned' ? <Button onClick={() => act(row.id, 'revise')}>{t('common.revise')}</Button> : null}
               {manager && row.status === 'submitted_to_manager' ? <Button onClick={() => act(row.id, 'send')}>{t('common.send')}</Button> : null}
+              {manager && row.status === 'submitted_to_manager' ? <Button variant="ghost" onClick={() => {
+                const note = window.prompt(t('common.returnReason'));
+                if (!note) return;
+                client.post(`/reports/financial/${row.id}/return/`, { note }).then(() => {
+                  toast(t('common.saved'), 'success');
+                  list.reload();
+                }).catch((err) => toast(errorMessage(err), 'danger'));
+              }}>{t('common.returnReport')}</Button> : null}
             </div>
           ) },
         ]}

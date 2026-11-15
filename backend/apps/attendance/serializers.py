@@ -40,3 +40,4 @@ class MarkAttendanceSerializer(serializers.Serializer):
 
 class CorrectAttendanceSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=AttendanceStatus.choices)
+    reason = serializers.CharField(required=False, allow_blank=True)

@@ -8,7 +8,7 @@ export const NAV_GROUPS = [
   { id: 'organisation', label: 'group.organisation', keys: ['centers', 'users', 'students', 'teachers', 'contracts'] },
   { id: 'academic', label: 'group.academic', keys: ['courses', 'availableCourses', 'myCourses', 'classes', 'schedule', 'enrollments', 'attendance'] },
   { id: 'finance', label: 'group.finance', keys: ['finance', 'payments', 'installments', 'scholarships', 'refunds', 'reports'] },
-  { id: 'system', label: 'group.system', keys: ['settings'] },
+  { id: 'system', label: 'group.system', keys: ['settings', 'governance'] },
 ];
 
 export const NAV = [
@@ -32,6 +32,7 @@ export const NAV = [
   { to: '/refunds', key: 'refunds', icon: 'Undo2', roles: ['super_admin', 'center_manager', 'finance_manager', 'student'] },
   { to: '/reports', key: 'reports', icon: 'BarChart3', roles: ['super_admin', 'center_manager', 'finance_manager'] },
   { to: '/settings', key: 'settings', icon: 'Settings', roles: ['super_admin', 'center_manager'] },
+  { to: '/governance', key: 'governance', icon: 'ShieldCheck', roles: ['super_admin'] },
 ];
 
 /** Longest matching route wins, so /courses never captures /courses/1's siblings. */

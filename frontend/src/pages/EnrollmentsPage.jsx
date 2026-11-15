@@ -2,15 +2,15 @@
  * Enrollment desk for the center manager.
  * Manual enrollment still checks capacity, duplicates, and schedule clashes.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
-import client, { errorMessage } from '../api/client';
+import client, { errorMessage, unwrap } from '../api/client';
 import { useToast } from '../context/ToastContext';
 import { useOptions } from '../hooks/useOptions';
 import { usePaged } from '../hooks/usePaged';
 import { DataTable } from '../components/DataTable';
-import { Badge, Button, Field, FilterDropdown, Modal, Select } from '../components/ui';
+import { Badge, Button, Card, Field, FilterDropdown, Modal, Select } from '../components/ui';
 import { personName } from '../utils/format';
 
 export function EnrollmentsPage() {
@@ -54,9 +54,17 @@ export function EnrollmentsPage() {
               <Button onClick={() => decide(row.id, 'approve')}>{t('common.approve')}</Button>
               <Button variant="danger" onClick={() => decide(row.id, 'reject')}>{t('common.reject')}</Button>
             </div>
+          ) : row.status === 'active' ? (
+            <Button variant="ghost" onClick={() => {
+              client.post(`/enrollments/${row.id}/complete/`, {}).then(() => {
+                toast(t('common.saved'), 'success');
+                list.reload();
+              }).catch((err) => toast(errorMessage(err), 'danger'));
+            }}>{t('common.complete')}</Button>
           ) : null },
         ]}
       />
+      <WaitlistPanel />
       <Modal title={t('pages.manualEnroll')} open={open} onClose={() => setOpen(false)}>
         <form className="grid" onSubmit={form.handleSubmit(async (values) => {
           try {
@@ -102,4 +110,51 @@ export function EnrollmentsPage() {
       list.reload();
     }).catch((err) => toast(errorMessage(err), 'danger'));
   }
+}
+
+function WaitlistPanel() {
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const [rows, setRows] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const load = () => {
+    client.get('/enrollments/waitlist/').then((response) => setRows(unwrap(response) || [])).catch(() => setRows([]));
+    client.get('/enrollments/withdrawals/').then((response) => setRequests(unwrap(response) || [])).catch(() => setRequests([]));
+  };
+  useEffect(load, []);
+  const promote = (id) => {
+    client.post('/enrollments/promote-waitlist/', { id }).then(() => {
+      toast(t('common.saved'), 'success');
+      load();
+    }).catch((err) => toast(errorMessage(err), 'danger'));
+  };
+  const decide = (id, approve) => {
+    client.post('/enrollments/decide-withdrawal/', { id, approve, note: approve ? 'Approved by the centre manager.' : 'Rejected by the centre manager.' }).then(() => {
+      toast(t('common.saved'), 'success');
+      load();
+    }).catch((err) => toast(errorMessage(err), 'danger'));
+  };
+  return (
+    <div className="grid" style={{ marginTop: 16 }}>
+      <Card>
+        <h3>{t('common.joinWaitlist')}</h3>
+        {rows.filter((row) => row.status === 'waiting').map((row) => (
+          <div className="row-actions" key={row.id}>
+            <span>{row.student} — {row.course}</span>
+            <Button onClick={() => promote(row.id)}>{t('common.promote')}</Button>
+          </div>
+        ))}
+      </Card>
+      <Card>
+        <h3>{t('common.withdraw')}</h3>
+        {requests.filter((row) => row.status === 'pending').map((row) => (
+          <div className="row-actions" key={row.id}>
+            <span>{row.student} — {row.reason}</span>
+            <Button onClick={() => decide(row.id, true)}>{t('common.approve')}</Button>
+            <Button variant="danger" onClick={() => decide(row.id, false)}>{t('common.reject')}</Button>
+          </div>
+        ))}
+      </Card>
+    </div>
+  );
 }

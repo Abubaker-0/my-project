@@ -129,6 +129,18 @@ class CenterViewSet(viewsets.ModelViewSet):
         updated = update_center_settings(settings_obj, serializer.validated_data, request.user, request)
         return Response(CenterSettingsSerializer(updated).data)
 
+    @action(detail=True, methods=['get'], url_path='settings/history')
+    def settings_history(self, request, pk=None):
+        from apps.centers.models import PolicyRevision
+        center = self.get_object()
+        if request.user.role not in (Role.SUPER_ADMIN, Role.CENTER_MANAGER, Role.FINANCE_MANAGER):
+            raise PermissionDenied('You cannot view center policy history.')
+        rows = PolicyRevision.objects.filter(scope='center', center=center)
+        return Response([
+            {'version': row.version, 'payload': row.payload, 'note': row.note, 'created_at': row.created_at}
+            for row in rows
+        ])
+
     @action(detail=True, methods=['get', 'post'], url_path='logo')
     def logo(self, request, pk=None):
         """Download or replace the center logo. The file is not on a public media URL."""
@@ -159,3 +171,43 @@ class GlobalSettingsView(APIView):
         serializer.is_valid(raise_exception=True)
         updated = update_global_settings(serializer.validated_data, request.user)
         return Response(GlobalSettingsSerializer(updated).data)
+
+
+class GlobalPolicyHistoryView(APIView):
+    def get(self, request):
+        from apps.centers.models import PolicyRevision
+        if request.user.role != Role.SUPER_ADMIN:
+            raise PermissionDenied('Only the super admin can read global policy history.')
+        rows = PolicyRevision.objects.filter(scope='global', center__isnull=True)
+        return Response([
+            {'version': row.version, 'payload': row.payload, 'note': row.note, 'created_at': row.created_at}
+            for row in rows
+        ])
+
+
+class EffectivePolicyView(APIView):
+    """Current policy the caller is operating under, plus the latest version number."""
+
+    def get(self, request):
+        from apps.centers.models import PolicyRevision
+        global_settings = GlobalSettings.load()
+        latest_global = PolicyRevision.objects.filter(scope='global', center__isnull=True).order_by('-version').first()
+        payload = {
+            'global': {
+                'currency_label': global_settings.currency_label,
+                'max_installments': global_settings.max_installments,
+                'default_allow_self_enrollment': global_settings.default_allow_self_enrollment,
+                'version': latest_global.version if latest_global else 0,
+            },
+            'prospective': 'Policy changes apply to new plans and enrollments. Issued invoices and frozen reports stay as they were.',
+        }
+        if request.user.center_id:
+            settings_obj = request.user.center.settings
+            latest = PolicyRevision.objects.filter(scope='center', center_id=request.user.center_id).order_by('-version').first()
+            payload['center'] = {
+                'allow_self_enrollment': settings_obj.allow_self_enrollment,
+                'require_enrollment_approval': settings_obj.require_enrollment_approval,
+                'max_installments': settings_obj.max_installments,
+                'version': latest.version if latest else 0,
+            }
+        return Response(payload)

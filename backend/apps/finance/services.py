@@ -180,6 +180,8 @@ def apply_scholarship(*, scholarship, enrollment, actor, request=None):
     invoice = ensure_invoice(enrollment)
     if money(invoice.paid_amount) > 0 or money(invoice.refunded_amount) > 0:
         raise BusinessRuleError('Apply the scholarship before recording payments or refunds.')
+    if ScholarshipGrant.objects.filter(enrollment=enrollment).exists():
+        raise ConflictError('This enrollment already has one scholarship. Discounts are not stacked.')
     discount = discount_for(scholarship, invoice.gross_amount)
     with transaction.atomic():
         invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
@@ -188,16 +190,14 @@ def apply_scholarship(*, scholarship, enrollment, actor, request=None):
         refresh_invoice_status(invoice)
         invoice.save()
         _redistribute_installments(invoice)
-        ScholarshipGrant.objects.update_or_create(
+        ScholarshipGrant.objects.create(
             enrollment=enrollment,
-            defaults={
-                'scholarship': scholarship,
-                'invoice': invoice,
-                'student': enrollment.student,
-                'center': enrollment.center,
-                'discount_amount': discount,
-                'granted_by': actor,
-            },
+            scholarship=scholarship,
+            invoice=invoice,
+            student=enrollment.student,
+            center=enrollment.center,
+            discount_amount=discount,
+            granted_by=actor,
         )
     write_audit(
         request,
@@ -211,12 +211,24 @@ def apply_scholarship(*, scholarship, enrollment, actor, request=None):
     return invoice
 
 
-def create_installment_plan(*, invoice, installments, actor, request=None):
+def create_installment_plan(*, invoice, installments, actor, request=None, replace=False):
     """Split the payable fee into 1 to 3 dated installments that sum to the net fee."""
 
+    from apps.finance.models import InstallmentPlanArchive
+
     _finance(actor, invoice.center, request)
-    if invoice.installments.exists():
-        raise ConflictError('This invoice already has an installment plan.')
+    existing = list(invoice.installments.order_by('number'))
+    if existing:
+        if not replace:
+            raise ConflictError('This invoice already has an installment plan.')
+        if any(money(item.paid_amount) > 0 for item in existing):
+            raise BusinessRuleError('A plan that already has a payment cannot be replaced.')
+        InstallmentPlanArchive.objects.create(
+            invoice=invoice,
+            payload=[{'number': item.number, 'due_date': item.due_date.isoformat(), 'amount': money_str(item.amount)} for item in existing],
+            replaced_by=actor,
+        )
+        invoice.installments.all().delete()
     if money(invoice.paid_amount) > 0:
         raise BusinessRuleError('A plan cannot be added after a payment has been recorded.')
     if money(invoice.net_amount) <= 0:
@@ -254,7 +266,7 @@ def _allocate(invoice, amount):
     """Pour a payment into the oldest installments that are not fully covered."""
 
     remaining = money(amount)
-    for installment in invoice.installments.order_by('number'):
+    for installment in invoice.installments.order_by('due_date', 'number'):
         if remaining <= 0:
             installment.save()
             continue
@@ -268,7 +280,7 @@ def _allocate(invoice, amount):
         installment.save()
 
 
-def record_payment(*, invoice, amount, method, actor, reference='', paid_at=None, request=None):
+def record_payment(*, invoice, amount, method, actor, reference='', paid_at=None, request=None, idempotency_key=''):
     """Record a cash or bank receipt and apply it to the installment plan."""
 
     _finance(actor, invoice.center, request)
@@ -281,17 +293,34 @@ def record_payment(*, invoice, amount, method, actor, reference='', paid_at=None
         raise BusinessRuleError('Payment amount must be greater than zero.')
     if invoice.status in (InvoiceStatus.CANCELLED, InvoiceStatus.REFUNDED):
         raise BusinessRuleError('This invoice cannot accept payments.')
+    key = (idempotency_key or '').strip()
+    reference = (reference or '').strip()
     with transaction.atomic():
         invoice = Invoice.objects.select_for_update().get(pk=invoice.pk)
+        if key:
+            existing = Payment.objects.filter(received_by=actor, idempotency_key=key).first()
+            if existing:
+                same = (
+                    existing.invoice_id == invoice.id
+                    and money(existing.amount) == amount
+                    and existing.method == method
+                    and existing.reference == reference
+                )
+                if not same:
+                    raise ConflictError('This idempotency key was already used for a different payment.')
+                return existing
         if amount > invoice.outstanding:
             raise BusinessRuleError('Payment exceeds the outstanding balance.')
+        import uuid
         payment = Payment.objects.create(
             invoice=invoice,
             center=invoice.center,
             student=invoice.student,
             amount=amount,
             method=method,
-            reference=(reference or '').strip(),
+            reference=reference,
+            receipt_number=f'RCP-{uuid.uuid4().hex[:12].upper()}',
+            idempotency_key=key,
             paid_at=paid_at or timezone.now(),
             received_by=actor,
         )
@@ -341,6 +370,14 @@ def request_refund(*, invoice, amount, reason, actor, request=None):
         requested_by=actor,
     )
     write_audit(request, 'refund.request', f'Refund requested on {invoice.invoice_number}.', user=actor, center=invoice.center, entity='refund', entity_id=refund.id)
+    from apps.common.notifications import notify
+    notify(
+        invoice.center.get_active_manager(),
+        'refund',
+        'Refund request',
+        f'A refund of {amount} was requested on {invoice.invoice_number}. Approval records the refund and does not send a bank transfer.',
+        dedupe_key=f'refund:{refund.id}',
+    )
     return refund
 
 

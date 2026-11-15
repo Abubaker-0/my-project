@@ -16,7 +16,10 @@ class InstallmentSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
-        fields = ('id', 'invoice', 'amount', 'method', 'reference', 'paid_at', 'received_by', 'student')
+        fields = (
+            'id', 'invoice', 'amount', 'method', 'reference', 'receipt_number',
+            'paid_at', 'received_by', 'student',
+        )
 
 
 class ScholarshipSerializer(serializers.ModelSerializer):
@@ -38,6 +41,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     course_name = serializers.CharField(source='enrollment.course.name', read_only=True)
     course_id = serializers.IntegerField(source='enrollment.course_id', read_only=True)
     outstanding = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    refund_state = serializers.CharField(read_only=True)
     installments = InstallmentSerializer(many=True, read_only=True)
     payments = PaymentSerializer(many=True, read_only=True)
     scholarship = serializers.SerializerMethodField()
@@ -47,7 +51,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'invoice_number', 'student', 'course_name', 'course_id', 'center',
             'gross_amount', 'scholarship_amount', 'net_amount', 'paid_amount',
-            'refunded_amount', 'outstanding', 'status', 'installments', 'payments',
+            'refunded_amount', 'outstanding', 'status', 'refund_state', 'installments', 'payments',
             'scholarship', 'created_at',
         )
 
@@ -79,11 +83,13 @@ class PaymentWriteSerializer(serializers.Serializer):
     method = serializers.ChoiceField(choices=PaymentMethod.choices)
     reference = serializers.CharField(required=False, allow_blank=True)
     paid_at = serializers.DateTimeField(required=False)
+    idempotency_key = serializers.CharField(required=False, allow_blank=True, max_length=80)
 
 
 class InstallmentPlanSerializer(serializers.Serializer):
     invoice = serializers.IntegerField()
     installments = serializers.ListField(child=serializers.DictField(), min_length=1, max_length=3)
+    replace = serializers.BooleanField(required=False, default=False)
 
 
 class ScholarshipWriteSerializer(serializers.Serializer):

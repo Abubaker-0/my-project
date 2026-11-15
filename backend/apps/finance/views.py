@@ -89,8 +89,24 @@ class PaymentViewSet(viewsets.ModelViewSet):
             reference=data.get('reference', ''),
             paid_at=data.get('paid_at'),
             request=request,
+            idempotency_key=data.get('idempotency_key', ''),
         )
         return Response(PaymentSerializer(payment).data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['get'])
+    def receipt(self, request, pk=None):
+        payment = self.get_object()
+        return Response({
+            'receipt_number': payment.receipt_number,
+            'amount': payment.amount,
+            'method': payment.method,
+            'reference': payment.reference,
+            'paid_at': payment.paid_at,
+            'invoice_number': payment.invoice.invoice_number,
+            'student': payment.student.full_name,
+            'center': payment.center.code,
+            'statement': 'This receipt records money received by the center. It is not a bank transfer.',
+        })
 
 
 class InstallmentViewSet(viewsets.ReadOnlyModelViewSet):
@@ -121,7 +137,13 @@ class InstallmentViewSet(viewsets.ReadOnlyModelViewSet):
                 due = date.fromisoformat(due)
             amount = raw.get('amount')
             items.append({'due_date': due, 'amount': amount})
-        created = create_installment_plan(invoice=invoice, installments=items, actor=request.user, request=request)
+        created = create_installment_plan(
+            invoice=invoice,
+            installments=items,
+            actor=request.user,
+            request=request,
+            replace=serializer.validated_data.get('replace', False),
+        )
         return Response(InstallmentSerializer(created, many=True).data, status=status.HTTP_201_CREATED)
 
 

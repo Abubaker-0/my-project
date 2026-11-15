@@ -97,6 +97,17 @@ export function PaymentsPage() {
           { key: 'amount', label: t('common.amount'), render: (row) => money(row.amount) },
           { key: 'method', label: t('common.method'), render: (row) => t(`common.${row.method}`) },
           { key: 'reference', label: t('common.reference') },
+          { key: 'receipt', label: t('common.receipt'), render: (row) => (
+            <Button variant="ghost" onClick={async () => {
+              try {
+                const response = await client.get(`/finance/payments/${row.id}/receipt/`);
+                const data = unwrap(response);
+                toast(`${data.receipt_number}: ${data.statement}`, 'success');
+              } catch (err) {
+                toast(errorMessage(err), 'danger');
+              }
+            }}>{row.receipt_number || t('common.receipt')}</Button>
+          ) },
         ]}
       />
       <Modal title={t('pages.newPayment')} open={open} onClose={() => setOpen(false)}>
@@ -310,7 +321,10 @@ export function RefundsPage() {
   return (
     <div>
       <div className="page-head">
-        <h2>{t('nav.refunds')}</h2>
+        <div>
+          <h2>{t('nav.refunds')}</h2>
+          <p className="muted">{t('common.refundMeaning')}</p>
+        </div>
         {canRequest ? <Button onClick={() => setOpen(true)}>{t('common.requestRefund')}</Button> : null}
       </div>
       <DataTable

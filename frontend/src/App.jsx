@@ -26,6 +26,7 @@ import { ReportsPage } from './pages/ReportsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { CenterSettingsRoute, SettingsPage } from './pages/SettingsPage';
 import { ForbiddenPage } from './pages/ForbiddenPage';
+import { GovernancePage } from './pages/GovernancePage';
 
 function guard(roles, node, center = false) {
   const body = center ? <CenterGuard>{node}</CenterGuard> : node;
@@ -65,6 +66,7 @@ export default function App() {
         <Route path="refunds" element={guard(['super_admin', 'center_manager', 'finance_manager', 'student'], <RefundsPage />)} />
         <Route path="reports" element={guard(['super_admin', 'center_manager', 'finance_manager'], <ReportsPage />)} />
         <Route path="settings" element={guard(['super_admin', 'center_manager'], <SettingsPage />)} />
+        <Route path="governance" element={guard(['super_admin'], <GovernancePage />)} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="forbidden" element={<ForbiddenPage />} />
       </Route>

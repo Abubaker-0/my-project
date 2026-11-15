@@ -6,6 +6,7 @@ frozen report. Each role receives only the figures they are allowed to see.
 """
 
 from datetime import timedelta
+from decimal import Decimal
 
 from django.db.models import Count, Q
 from django.utils import timezone
@@ -16,6 +17,7 @@ from apps.accounts.services import active_contract_for
 from apps.attendance.models import AttendanceRecord
 from apps.classes.models import ClassSchedule
 from apps.common.access import assert_same_center
+from apps.common.money import money
 from apps.common.audit import write_audit
 from apps.common.choices import (
     OPEN_ENROLLMENT,
@@ -262,8 +264,12 @@ def build_dashboard(user):
 def create_financial_report(*, center, title, start, end, actor, request=None):
     """Freeze a finance snapshot. Only the center's finance manager can prepare it."""
 
+    from apps.common.permissions_catalog import has_permission
+
     if actor.role != Role.FINANCE_MANAGER:
         raise PermissionDenied('Only the finance manager can prepare a financial report.')
+    if not has_permission(actor, 'reports.prepare', center):
+        raise PermissionDenied('Report preparation is restricted for this center.')
     assert_same_center(actor, center, request)
     from apps.accounts.services import assert_operational
     assert_operational(actor)
@@ -313,3 +319,96 @@ def send_report(report, actor, request=None):
     report.save(update_fields=['status', 'sent_by', 'sent_at', 'updated_at'])
     write_audit(request, 'report.send', f'Report {report.id} sent to super admin.', user=actor, center=report.center, entity='report', entity_id=report.id)
     return report
+
+
+def return_report(report, actor, note, request=None):
+    """Send a submitted report back. The frozen snapshot is not edited."""
+
+    if actor.role != Role.CENTER_MANAGER:
+        raise PermissionDenied('Only the center manager can return a report.')
+    assert_same_center(actor, report.center, request)
+    from apps.accounts.services import assert_operational
+    assert_operational(actor)
+    if report.status != ReportStatus.SUBMITTED_TO_MANAGER:
+        raise BusinessRuleError('Only a submitted report can be returned.')
+    if len((note or '').strip()) < 5:
+        raise BusinessRuleError('Explain why the report is being returned.')
+    report.status = ReportStatus.RETURNED
+    report.return_note = note.strip()
+    report.returned_by = actor
+    report.returned_at = timezone.now()
+    report.save(update_fields=['status', 'return_note', 'returned_by', 'returned_at', 'updated_at'])
+    from apps.common.notifications import notify
+    notify(
+        report.prepared_by,
+        'report',
+        'Report returned',
+        f'{report.title} was returned. Create a new revision; the sent snapshot is never edited.',
+        dedupe_key=f'report-return:{report.id}',
+    )
+    write_audit(request, 'report.return', f'Report {report.id} returned.', user=actor, center=report.center, entity='report', entity_id=report.id)
+    return report
+
+
+def revise_report(report, actor, request=None):
+    """Create a linked draft from a returned report. The previous snapshot stays."""
+
+    from apps.common.permissions_catalog import has_permission
+
+    if actor.role != Role.FINANCE_MANAGER:
+        raise PermissionDenied('Only the finance manager can revise a report.')
+    if not has_permission(actor, 'reports.prepare', report.center):
+        raise PermissionDenied('Report preparation is restricted for this center.')
+    assert_same_center(actor, report.center, request)
+    from apps.accounts.services import assert_operational
+    assert_operational(actor)
+    if report.status != ReportStatus.RETURNED:
+        raise BusinessRuleError('A revision can be created only from a returned report.')
+    if report.revisions.filter(status=ReportStatus.DRAFT).exists():
+        raise ConflictError('A draft revision already exists for this report.')
+    revision = FinancialReport.objects.create(
+        center=report.center,
+        title=report.title,
+        period_start=report.period_start,
+        period_end=report.period_end,
+        status=ReportStatus.DRAFT,
+        prepared_by=actor,
+        revision=report.revision + 1,
+        previous=report,
+        snapshot=build_snapshot(report.center, report.period_start, report.period_end),
+    )
+    write_audit(request, 'report.revise', f'Report {revision.id} revises {report.id}.', user=actor, center=report.center, entity='report', entity_id=revision.id)
+    return revision
+
+
+def integrity_report():
+    """Read-only checks. This function never changes rows."""
+
+    from apps.accounts.models import Contract
+    from apps.centers.models import Center
+    from apps.common.choices import OPEN_ENROLLMENT
+    from apps.enrollments.models import Enrollment
+    from apps.finance.models import Invoice
+
+    issues = []
+    for center in Center.objects.filter(is_deleted=False, is_active=True):
+        if center.get_active_manager() is None:
+            issues.append({'code': 'active_center_without_manager', 'center': center.code})
+    for invoice in Invoice.objects.all().iterator():
+        if money(invoice.paid_amount) > money(invoice.net_amount):
+            issues.append({'code': 'paid_above_net', 'invoice': invoice.invoice_number})
+        planned = list(invoice.installments.all())
+        if planned and money(sum((item.amount for item in planned), Decimal('0'))) != money(invoice.net_amount):
+            issues.append({'code': 'installment_sum_mismatch', 'invoice': invoice.invoice_number})
+    open_pairs = (
+        Enrollment.objects.filter(status__in=OPEN_ENROLLMENT)
+        .values('student_id', 'course_id')
+        .annotate(count=Count('id'))
+        .filter(count__gt=1)
+    )
+    for pair in open_pairs:
+        issues.append({'code': 'duplicate_open_enrollment', 'student': pair['student_id'], 'course': pair['course_id']})
+    expired_locks = Contract.objects.filter(status='active', end_date__lt=timezone.localdate()).count()
+    if expired_locks:
+        issues.append({'code': 'expired_contract_still_active', 'count': expired_locks})
+    return issues

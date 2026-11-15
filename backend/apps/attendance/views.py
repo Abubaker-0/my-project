@@ -56,12 +56,14 @@ class AttendanceViewSet(viewsets.ReadOnlyModelViewSet):
         if session:
             existing = {record.student_id: record for record in session.records.all()}
         students = []
-        enrollments = Enrollment.objects.filter(course_class=course_class, status=EnrollmentStatus.ACTIVE).select_related('student', 'student__profile')
+        from apps.attendance.services import eligible_roster
+        from datetime import date as date_cls
+        enrollments = eligible_roster(course_class, date_cls.fromisoformat(day))
         editable = request.user.role == Role.CENTER_MANAGER and session is not None
         for enrollment in enrollments:
             record = existing.get(enrollment.student_id)
             students.append({
-                'student': UserBriefSerializer(enrollment.student).data,
+                'student': UserBriefSerializer(enrollment.student, context={'request': request}).data,
                 'record_id': record.id if record else None,
                 'status': record.status if record else None,
                 'editable': editable,
@@ -148,5 +150,11 @@ class AttendanceRecordViewSet(mixins.UpdateModelMixin, viewsets.GenericViewSet):
     def partial_update(self, request, pk=None):
         serializer = CorrectAttendanceSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        record = correct_attendance(self.get_object(), serializer.validated_data['status'], request.user, request)
+        record = correct_attendance(
+            self.get_object(),
+            serializer.validated_data['status'],
+            request.user,
+            serializer.validated_data.get('reason', ''),
+            request,
+        )
         return Response(AttendanceRecordSerializer(record).data)

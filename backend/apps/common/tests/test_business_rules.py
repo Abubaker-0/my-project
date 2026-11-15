@@ -255,6 +255,11 @@ class BusinessRuleTests(APITestCase):
     def test_attendance_is_present_or_absent_and_manager_corrects_it(self):
         enrollment = self._enroll(self.student.id, self.course)
         self.assertEqual(enrollment.status_code, 201, enrollment.data)
+        from datetime import datetime
+        from apps.enrollments.models import Enrollment
+        Enrollment.objects.filter(pk=enrollment.data['id']).update(
+            created_at=timezone.make_aware(datetime(2026, 9, 1, 8, 0)),
+        )
         day = timezone.localdate()
         while day.weekday() != 0:
             day -= timedelta(days=1)
@@ -283,7 +288,10 @@ class BusinessRuleTests(APITestCase):
         teacher_edit = self.client.patch(f'/api/attendance/records/{record_id}/', {'status': 'absent'}, format='json')
         self.assertEqual(teacher_edit.status_code, 403, teacher_edit.data)
         self.client.force_authenticate(self.manager)
-        manager_edit = self.client.patch(f'/api/attendance/records/{record_id}/', {'status': 'absent'}, format='json')
+        manager_edit = self.client.patch(f'/api/attendance/records/{record_id}/', {
+            'status': 'absent',
+            'reason': 'The student arrived after the register was submitted.',
+        }, format='json')
         self.assertEqual(manager_edit.status_code, 200, manager_edit.data)
         self.assertEqual(manager_edit.data['status'], 'absent')
 

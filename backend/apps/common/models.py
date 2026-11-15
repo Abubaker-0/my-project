@@ -70,3 +70,54 @@ class AuditLog(TimeStampedModel):
 
     def __str__(self):
         return f'{self.action}: {self.message[:80]}'
+
+
+class Notification(TimeStampedModel):
+    """In-app notice for one user. External email and SMS are not sent."""
+
+    recipient = models.ForeignKey(
+        'accounts.User',
+        on_delete=models.CASCADE,
+        related_name='notifications',
+    )
+    kind = models.CharField(max_length=40)
+    title = models.CharField(max_length=180)
+    body = models.TextField()
+    read_at = models.DateTimeField(null=True, blank=True)
+    dedupe_key = models.CharField(max_length=120, null=True, blank=True, unique=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [models.Index(fields=['recipient', 'read_at'])]
+
+    def __str__(self):
+        return self.title
+
+
+class PermissionOverride(TimeStampedModel):
+    """A narrowing of a configurable permission. Protected duties cannot be stored here."""
+
+    role = models.CharField(max_length=32)
+    code = models.CharField(max_length=64)
+    center = models.ForeignKey(
+        'centers.Center',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='permission_overrides',
+    )
+    allowed = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['role', 'code'],
+                condition=models.Q(center__isnull=True),
+                name='unique_global_permission_override',
+            ),
+            models.UniqueConstraint(
+                fields=['role', 'code', 'center'],
+                condition=models.Q(center__isnull=False),
+                name='unique_center_permission_override',
+            ),
+        ]

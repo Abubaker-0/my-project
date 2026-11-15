@@ -66,10 +66,16 @@ The API listens on `http://127.0.0.1:8000`. Health check: `http://127.0.0.1:8000
 Useful checks:
 
 ```bat
-python manage.py test apps.common.tests.test_business_rules
+python manage.py test apps.common.tests.test_business_rules apps.common.tests.test_workflows
+python manage.py notify_contract_expirations
+python manage.py check_integrity
 ```
 
-Set `TEST_DB=mysql` only when you want the test suite to use MySQL. The default test database is SQLite.
+`notify_contract_expirations` writes in-app alerts for contracts that end in 30 days, 7 days, or today. Running it again does not create a second copy of the same alert. It does not send email or SMS.
+
+`check_integrity` prints a read-only list of data problems. It does not change rows.
+
+Set `TEST_DB=mysql` only when you want the test suite to use MySQL. The default test database is SQLite. SQLite does not prove MySQL row-lock behavior. Apply the `workflow_controls` migrations (`accounts` is unchanged; `attendance`, `centers`, `common`, `enrollments`, `finance`, and `reports` each gained `0002`) on the disposable development database before using the new screens.
 
 ## Frontend
 
@@ -89,10 +95,10 @@ The language switch and theme switch are on the sign-in page and in the top bar.
 ## What each role can do
 
 - **Super Admin** sees every center, its people, courses, finance figures, and reports. They create centers and assign the single center manager. They do not create courses, classes, schedules, or enrollments.
-- **Center Manager** works only inside their center: courses, classes, people, contracts, manual enrollment, attendance corrections, and sending finance reports upward.
-- **Finance Manager** records cash and bank payments, up to three installments, scholarships, and refund requests for their center. They cannot approve a refund.
-- **Teacher** sees assigned classes, marks present or absent, and reads their contract. They cannot edit a register after submitting it.
-- **Student** sees courses in their own center, enrolls when the course is open and has seats, and reads their attendance, invoices, installments, and scholarships.
+- **Center Manager** works only inside their center: courses, classes, people, contracts, manual enrollment, waitlist promotion, withdrawal decisions, attendance corrections with a reason, and sending or returning finance reports.
+- **Finance Manager** records cash and bank payments, up to three installments, one scholarship per enrollment, and refund requests for their center. They cannot approve a refund. A payment can carry an idempotency key so a retry does not create a second receipt.
+- **Teacher** sees assigned classes, marks present or absent for students who were on the roster that day, and reads their contract. They cannot edit a register after submitting it.
+- **Student** sees courses in their own center, enrolls or joins a waitlist, and reads their attendance, invoices, installments, and receipts. A withdrawal request does not cancel the invoice.
 
 A person cannot be active in two centers at once. The manager picker hides managers who already hold an active contract.
 

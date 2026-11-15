@@ -32,6 +32,23 @@ class FinancialReport(TimeStampedModel):
         related_name='reports_sent',
     )
     sent_at = models.DateTimeField(null=True, blank=True)
+    revision = models.PositiveIntegerField(default=1)
+    previous = models.ForeignKey(
+        'self',
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name='revisions',
+    )
+    return_note = models.TextField(blank=True)
+    returned_by = models.ForeignKey(
+        'accounts.User',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='reports_returned',
+    )
+    returned_at = models.DateTimeField(null=True, blank=True)
     snapshot = models.JSONField(default=dict)
 
     class Meta:

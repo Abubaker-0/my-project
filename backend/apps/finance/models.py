@@ -75,6 +75,20 @@ class Invoice(TimeStampedModel):
 
         return money(max(money(self.net_amount) - money(self.paid_amount), 0))
 
+    @property
+    def refund_state(self):
+        """Collection status stays on `status`. Refund progress is reported separately."""
+
+        from apps.common.money import money
+
+        refunded = money(self.refunded_amount)
+        paid = money(self.paid_amount)
+        if refunded <= 0:
+            return 'none'
+        if paid > 0 and refunded >= paid:
+            return 'full'
+        return 'partial'
+
 
 class Payment(TimeStampedModel):
     """Cash or bank receipt against an invoice. There is no exchange rate."""
@@ -85,6 +99,8 @@ class Payment(TimeStampedModel):
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     method = models.CharField(max_length=10, choices=PaymentMethod.choices)
     reference = models.CharField(max_length=80, blank=True)
+    receipt_number = models.CharField(max_length=40, unique=True, null=True, blank=True)
+    idempotency_key = models.CharField(max_length=80, blank=True, default='')
     paid_at = models.DateTimeField(default=timezone.now)
     received_by = models.ForeignKey(
         'accounts.User',
@@ -100,6 +116,11 @@ class Payment(TimeStampedModel):
             models.CheckConstraint(
                 check=models.Q(method__in=[PaymentMethod.CASH, PaymentMethod.BANK]),
                 name='payment_method_cash_or_bank',
+            ),
+            models.UniqueConstraint(
+                fields=['received_by', 'idempotency_key'],
+                condition=~models.Q(idempotency_key=''),
+                name='unique_payment_idempotency',
             ),
         ]
 
@@ -183,6 +204,14 @@ class ScholarshipGrant(TimeStampedModel):
 
     def __str__(self):
         return f'{self.scholarship} for {self.student}'
+
+
+class InstallmentPlanArchive(TimeStampedModel):
+    """Preserved copy of an unpaid plan that finance replaced."""
+
+    invoice = models.ForeignKey(Invoice, on_delete=models.PROTECT, related_name='plan_archives')
+    payload = models.JSONField(default=list)
+    replaced_by = models.ForeignKey('accounts.User', on_delete=models.PROTECT, related_name='installment_plan_archives')
 
 
 class Refund(TimeStampedModel):

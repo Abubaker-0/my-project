@@ -40,11 +40,18 @@ export function Topbar({ title, onMenu }) {
   const openNotes = async () => {
     setMenu(false);
     setNotesOpen((value) => !value);
-    if (notes || !['super_admin', 'center_manager'].includes(user?.role)) return;
     try {
-      const response = await client.get('/reports/audit-logs/?page_size=5&ordering=-created_at');
-      const data = unwrap(response);
-      setNotes(data.results || []);
+      const response = await client.get('/notifications/');
+      const notices = unwrap(response) || [];
+      let audit = [];
+      if (['super_admin', 'center_manager'].includes(user?.role)) {
+        const auditResponse = await client.get('/reports/audit-logs/?page_size=5&ordering=-created_at');
+        audit = unwrap(auditResponse).results || [];
+      }
+      setNotes([
+        ...notices.map((note) => ({ id: `n-${note.id}`, message: note.title, created_at: note.created_at })),
+        ...audit.map((note) => ({ id: `a-${note.id}`, message: note.message, created_at: note.created_at })),
+      ]);
     } catch {
       setNotes([]);
     }

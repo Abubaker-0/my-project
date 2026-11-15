@@ -76,6 +76,14 @@ def enroll(*, student, course, course_class, actor, source, request=None):
             taken = Enrollment.objects.filter(course=locked, status__in=OPEN_ENROLLMENT).count()
             if taken >= locked.capacity:
                 raise ConflictError('This course is full.')
+            class_taken = Enrollment.objects.filter(course_class=course_class, status__in=OPEN_ENROLLMENT).count()
+            room_caps = [
+                slot.classroom.capacity
+                for slot in course_class.schedules.select_related('classroom')
+                if slot.classroom_id and not slot.classroom.is_deleted
+            ]
+            if room_caps and class_taken >= min(room_caps):
+                raise ConflictError('This classroom cannot take another student.')
             enrollment = Enrollment(
                 student=student,
                 course=locked,
@@ -127,6 +135,165 @@ def decide_enrollment(enrollment, actor, approve, request=None):
         request,
         'enrollment.decide',
         f'Enrollment {enrollment.id} {enrollment.status}.',
+        user=actor,
+        center=enrollment.center,
+        entity='enrollment',
+        entity_id=enrollment.id,
+    )
+    return enrollment
+
+
+def join_waitlist(*, student, course, course_class, actor, request=None):
+    """Record a waitlist place. It does not hold a seat or create an invoice."""
+
+    from apps.enrollments.models import WaitlistEntry
+
+    if actor.role != Role.STUDENT or actor.id != student.id:
+        raise PermissionDenied('Students can only join a waitlist for themselves.')
+    assert_operational(actor)
+    if student.center_id != course.center_id or course_class.course_id != course.id:
+        raise PermissionDenied('A student cannot wait for a class at another center.')
+    if Enrollment.objects.filter(student=student, course=course, status__in=OPEN_ENROLLMENT).exists():
+        raise ConflictError('The student already has an enrollment for this course.')
+    if WaitlistEntry.objects.filter(student=student, course=course, status=WaitlistEntry.WAITING).exists():
+        raise ConflictError('The student is already waiting for this course.')
+    with transaction.atomic():
+        Course.objects.select_for_update().get(pk=course.pk)
+        last = WaitlistEntry.objects.filter(course=course).order_by('-position').first()
+        entry = WaitlistEntry.objects.create(
+            student=student,
+            course=course,
+            course_class=course_class,
+            center=course.center,
+            position=(last.position + 1) if last else 1,
+            status=WaitlistEntry.WAITING,
+        )
+    write_audit(
+        request,
+        'waitlist.join',
+        f'{student.username} joined the waitlist for {course.code}.',
+        user=actor,
+        center=course.center,
+        entity='waitlist',
+        entity_id=entry.id,
+    )
+    return entry
+
+
+def promote_waitlist(entry, actor, request=None):
+    """Manager promotion re-checks every enrollment rule before a seat is taken."""
+
+    from apps.common.permissions_catalog import has_permission
+    from apps.enrollments.models import WaitlistEntry
+
+    if actor.role != Role.CENTER_MANAGER:
+        raise PermissionDenied('Only the center manager can promote a waitlist entry.')
+    if not has_permission(actor, 'waitlist.promote', entry.center):
+        raise PermissionDenied('Waitlist promotion is restricted for this center.')
+    assert_same_center(actor, entry.center, request)
+    assert_operational(actor)
+    if entry.status != WaitlistEntry.WAITING:
+        raise ConflictError('This waitlist entry is no longer waiting.')
+    enrollment = enroll(
+        student=entry.student,
+        course=entry.course,
+        course_class=entry.course_class,
+        actor=actor,
+        source=EnrollmentSource.MANUAL,
+        request=request,
+    )
+    entry.status = WaitlistEntry.PROMOTED
+    entry.save(update_fields=['status', 'updated_at'])
+    return enrollment
+
+
+def request_withdrawal(enrollment, actor, reason, request=None):
+    """Ask to leave. The invoice and any refund stay on their own workflows."""
+
+    from apps.common.notifications import notify
+    from apps.enrollments.models import WithdrawalRequest
+
+    if actor.role != Role.STUDENT or actor.id != enrollment.student_id:
+        raise PermissionDenied('Students can request withdrawal only for their own enrollment.')
+    if enrollment.status != EnrollmentStatus.ACTIVE:
+        raise BusinessRuleError('Only an active enrollment can be withdrawn.')
+    if len((reason or '').strip()) < 5:
+        raise BusinessRuleError('Explain the withdrawal in at least 5 characters.')
+    if WithdrawalRequest.objects.filter(enrollment=enrollment, status=WithdrawalRequest.PENDING).exists():
+        raise ConflictError('A withdrawal request is already waiting.')
+    row = WithdrawalRequest.objects.create(enrollment=enrollment, reason=reason.strip())
+    notify(
+        enrollment.center.get_active_manager(),
+        'withdrawal',
+        'Withdrawal request',
+        f'{actor.username} asked to leave {enrollment.course.code}.',
+        dedupe_key=f'withdrawal:{row.id}',
+    )
+    write_audit(
+        request,
+        'enrollment.withdraw_request',
+        f'Withdrawal requested for enrollment {enrollment.id}.',
+        user=actor,
+        center=enrollment.center,
+        entity='enrollment',
+        entity_id=enrollment.id,
+    )
+    return row
+
+
+def decide_withdrawal(row, actor, approve, note='', request=None):
+    """Approve or reject. Approval releases the seat and does not issue a refund."""
+
+    from apps.enrollments.models import WithdrawalRequest
+
+    if actor.role != Role.CENTER_MANAGER:
+        raise PermissionDenied('Only the center manager can decide a withdrawal.')
+    assert_same_center(actor, row.enrollment.center, request)
+    assert_operational(actor)
+    if row.status != WithdrawalRequest.PENDING:
+        raise ConflictError('This withdrawal has already been decided.')
+    row.status = WithdrawalRequest.APPROVED if approve else WithdrawalRequest.REJECTED
+    row.decided_by = actor
+    row.decided_at = timezone.now()
+    row.decision_note = note or ''
+    row.save()
+    if approve:
+        enrollment = row.enrollment
+        enrollment.status = EnrollmentStatus.WITHDRAWN
+        enrollment.decided_by = actor
+        enrollment.decided_at = timezone.now()
+        enrollment.save()
+    write_audit(
+        request,
+        'enrollment.withdraw_decide',
+        f'Withdrawal {row.id} {row.status}.',
+        user=actor,
+        center=row.enrollment.center,
+        entity='withdrawal',
+        entity_id=row.id,
+    )
+    return row
+
+
+def complete_enrollment(enrollment, actor, request=None):
+    """Close an active enrollment after the course end date. It is no longer open."""
+
+    if actor.role != Role.CENTER_MANAGER:
+        raise PermissionDenied('Only the center manager can complete an enrollment.')
+    assert_same_center(actor, enrollment.center, request)
+    assert_operational(actor)
+    if enrollment.status != EnrollmentStatus.ACTIVE:
+        raise ConflictError('Only an active enrollment can be completed.')
+    if enrollment.course.end_date > timezone.localdate():
+        raise BusinessRuleError('Completion is available after the course end date.')
+    enrollment.status = EnrollmentStatus.COMPLETED
+    enrollment.decided_by = actor
+    enrollment.decided_at = timezone.now()
+    enrollment.save()
+    write_audit(
+        request,
+        'enrollment.complete',
+        f'Enrollment {enrollment.id} completed.',
         user=actor,
         center=enrollment.center,
         entity='enrollment',

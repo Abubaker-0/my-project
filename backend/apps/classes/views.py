@@ -132,7 +132,11 @@ class ClassViewSet(viewsets.ModelViewSet):
     def students(self, request, pk=None):
         course_class = self.get_object()
         enrollments = Enrollment.objects.filter(course_class=course_class, status=EnrollmentStatus.ACTIVE).select_related('student', 'student__profile')
-        return Response(UserBriefSerializer([row.student for row in enrollments], many=True).data)
+        return Response(UserBriefSerializer(
+            [row.student for row in enrollments],
+            many=True,
+            context={'request': request},
+        ).data)
 
     @action(detail=True, methods=['post'])
     def schedules(self, request, pk=None):

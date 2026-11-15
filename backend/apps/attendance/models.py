@@ -60,3 +60,13 @@ class AttendanceRecord(TimeStampedModel):
 
     def __str__(self):
         return f'{self.student} {self.status}'
+
+
+class AttendanceCorrection(TimeStampedModel):
+    """History of a manager correction. The original status is kept here."""
+
+    record = models.ForeignKey(AttendanceRecord, on_delete=models.CASCADE, related_name='corrections')
+    old_status = models.CharField(max_length=10)
+    new_status = models.CharField(max_length=10)
+    reason = models.TextField()
+    actor = models.ForeignKey('accounts.User', on_delete=models.PROTECT, related_name='attendance_corrections')

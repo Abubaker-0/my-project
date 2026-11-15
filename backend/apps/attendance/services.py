@@ -18,6 +18,23 @@ from apps.common.exceptions import BusinessRuleError, ConflictError
 from apps.enrollments.models import Enrollment
 
 
+def eligible_roster(course_class, day):
+    """Students who held an active seat on `day`, not merely whoever is active now."""
+
+    rows = []
+    enrollments = Enrollment.objects.filter(
+        course_class=course_class,
+        created_at__date__lte=day,
+    ).exclude(status__in=(EnrollmentStatus.REJECTED, EnrollmentStatus.PENDING))
+    for enrollment in enrollments:
+        if enrollment.status == EnrollmentStatus.ACTIVE:
+            rows.append(enrollment)
+        elif enrollment.status in (EnrollmentStatus.WITHDRAWN, EnrollmentStatus.COMPLETED):
+            if enrollment.decided_at and timezone.localtime(enrollment.decided_at).date() > day:
+                rows.append(enrollment)
+    return rows
+
+
 def mark_attendance(*, course_class, day, records, actor, request=None):
     """Submit the full register for one class date. Partial registers are refused."""
 
@@ -37,10 +54,7 @@ def mark_attendance(*, course_class, day, records, actor, request=None):
         raise BusinessRuleError('This class does not meet on the selected date.')
     if Attendance.objects.filter(course_class=course_class, date=day).exists():
         raise ConflictError('Attendance was already submitted. The center manager can correct it.')
-    roster = list(
-        Enrollment.objects.filter(course_class=course_class, status=EnrollmentStatus.ACTIVE)
-        .values_list('student_id', flat=True)
-    )
+    roster = [enrollment.student_id for enrollment in eligible_roster(course_class, day)]
     if not roster:
         raise BusinessRuleError('This class has no active students to mark.')
     incoming = {}
@@ -79,8 +93,10 @@ def mark_attendance(*, course_class, day, records, actor, request=None):
     return session
 
 
-def correct_attendance(record, status, actor, request=None):
-    """Let the center manager correct a mark after the teacher has submitted it."""
+def correct_attendance(record, status, actor, reason, request=None):
+    """Let the center manager correct a mark and keep the previous value."""
+
+    from apps.attendance.models import AttendanceCorrection
 
     if actor.role != Role.CENTER_MANAGER:
         raise PermissionDenied('Only the center manager can edit submitted attendance.')
@@ -91,10 +107,23 @@ def correct_attendance(record, status, actor, request=None):
         raise BusinessRuleError('Attendance has not been submitted yet.')
     if status not in (AttendanceStatus.PRESENT, AttendanceStatus.ABSENT):
         raise BusinessRuleError('Attendance status must be present or absent.')
+    reason = (reason or '').strip()
+    if len(reason) < 5:
+        raise BusinessRuleError('A correction needs a reason of at least 5 characters.')
+    if record.status == status:
+        raise BusinessRuleError('The mark is already set to that status.')
+    old_status = record.status
     record.status = status
     record.edited_by = actor
     record.edited_at = timezone.now()
     record.save()
+    AttendanceCorrection.objects.create(
+        record=record,
+        old_status=old_status,
+        new_status=status,
+        reason=reason,
+        actor=actor,
+    )
     write_audit(
         request,
         'attendance.correct',

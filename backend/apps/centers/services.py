@@ -198,10 +198,21 @@ def update_center_settings(settings_obj, data, actor, request=None):
         raise BusinessRuleError(f'Installments must be between 1 and {cap}.')
     settings_obj.full_clean()
     settings_obj.save()
+    record_policy(
+        scope='center',
+        center=settings_obj.center,
+        payload={
+            'allow_self_enrollment': settings_obj.allow_self_enrollment,
+            'require_enrollment_approval': settings_obj.require_enrollment_approval,
+            'max_installments': settings_obj.max_installments,
+        },
+        actor=actor,
+        note='Center policy change applies to later enrollments and new installment plans.',
+    )
     return settings_obj
 
 
-def update_global_settings(data, actor):
+def update_global_settings(data, actor, request=None):
     """Super admin organization defaults. The installment ceiling cannot exceed 3."""
 
     if actor.role != Role.SUPER_ADMIN:
@@ -221,7 +232,35 @@ def update_global_settings(data, actor):
         raise BusinessRuleError('The global installment maximum must be between 1 and 3.')
     settings_obj.full_clean()
     settings_obj.save()
+    record_policy(
+        scope='global',
+        center=None,
+        payload={
+            'organization_name': settings_obj.organization_name,
+            'currency_label': settings_obj.currency_label,
+            'default_allow_self_enrollment': settings_obj.default_allow_self_enrollment,
+            'max_installments': settings_obj.max_installments,
+        },
+        actor=actor,
+        note='Global policy change does not rewrite issued invoices or frozen reports.',
+    )
     return settings_obj
+
+
+def record_policy(*, scope, center, payload, actor, note=''):
+    """Append the next policy version. Callers do not edit older versions."""
+
+    from apps.centers.models import PolicyRevision
+
+    latest = PolicyRevision.objects.filter(scope=scope, center=center).order_by('-version').first()
+    PolicyRevision.objects.create(
+        scope=scope,
+        center=center,
+        version=(latest.version + 1) if latest else 1,
+        payload=payload,
+        note=note,
+        actor=actor,
+    )
 
 
 def center_statistics(center):

@@ -87,13 +87,14 @@ Center settings: `allow_self_enrollment`, `require_enrollment_approval`, `max_in
 | --- | --- | --- |
 | GET | `/finance/summary/?center=` | Finance and manager use their center. Super admin must pass `center`. Optional `start` and `end`. |
 | GET | `/finance/invoices/` | Scoped. Students see their own. |
-| GET, POST | `/finance/payments/` | Finance creates `{ invoice, amount, method, reference }`. Bank needs a reference of at least 3 characters. |
+| GET, POST | `/finance/payments/` | Finance creates `{ invoice, amount, method, reference, idempotency_key }`. Bank needs a reference of at least 3 characters. The same user, key, and payload returns the original payment. A different payload with that key is `409`. |
 | GET | `/finance/installments/` | Scoped |
-| POST | `/finance/installments/plan/` | Finance. `{ invoice, installments: [{ due_date, amount }] }` with 1 to 3 rows that sum to the payable fee. |
+| POST | `/finance/installments/plan/` | Finance. `{ invoice, installments: [{ due_date, amount }], replace }`. `replace` archives an unpaid plan. A plan that already has a payment cannot be replaced. |
 | GET, POST | `/finance/scholarships/` | Finance creates `{ name, scholarship_type, value, description }`. `scholarship_type` is `percentage` or `fixed`. |
 | POST | `/finance/scholarships/apply/` | Finance `{ scholarship, enrollment }` before any payment. |
 | GET, POST | `/finance/refunds/` | Student or finance `{ invoice, amount, reason }` |
-| POST | `/finance/refunds/<id>/approve/`, `/reject/` | Center manager `{ decision_note }` |
+| POST | `/finance/refunds/<id>/approve/`, `/reject/` | Center manager `{ decision_note }`. Approval records the refund in the centre accounts. It does not send a bank transfer. |
+| GET | `/finance/payments/<id>/receipt/` | People who can see the payment. The statement says it is not a bank transfer. |
 
 ## Reports
 
@@ -104,12 +105,43 @@ Center settings: `allow_self_enrollment`, `require_enrollment_approval`, `max_in
 | POST | `/reports/financial/<id>/submit/` | Finance, draft only |
 | POST | `/reports/financial/<id>/send/` | Manager, after submit |
 | GET | `/reports/audit-logs/` | Super admin, or the manager for their center |
+| POST | `/reports/financial/<id>/return/` | Manager, submitted reports only. `{ note }` of at least 5 characters. The snapshot is not edited. |
+| POST | `/reports/financial/<id>/revise/` | Finance, from a returned report. Creates a new draft linked to the previous revision. |
+| GET | `/reports/integrity/` | Super admin. Read only. |
+| GET | `/reports/export/invoices/` | Super admin, manager, or finance, unless `exports.invoices` is restricted. CSV for invoices in scope. |
+
+The super admin financial-report list defaults to reports already sent. Pass `?status=` to see another state.
+
+## Governance
+
+| Method | Path | Who |
+| --- | --- | --- |
+| GET | `/permissions/catalog/` | Super admin and center manager |
+| GET | `/permissions/effective/` | Signed in. Optional `center` for the super admin. |
+| GET, POST | `/permissions/overrides/` | Super admin, or a manager for their own center. Protected duties cannot be denied. Body `{ role, code, allowed, center }`. |
+| GET | `/notifications/` | Signed in. Own notices only. |
+| POST | `/notifications/read-all/` and `/notifications/<id>/read/` | The recipient |
+| GET | `/settings/global/history/` and `/centers/<id>/settings/history/` | People who can read those settings |
+| GET | `/settings/effective/?center=` | Signed in for their center. Super admin passes `center`. |
+
+## Enrollment controls
+
+| Method | Path | Who |
+| --- | --- | --- |
+| GET, POST | `/enrollments/waitlist/` | Student joins `{ course_id, class_id }`. No invoice and no reserved seat. |
+| POST | `/enrollments/promote-waitlist/` | Manager `{ id }`. Rechecks capacity and eligibility. |
+| POST | `/enrollments/<id>/withdraw/` | Student `{ reason }` |
+| GET | `/enrollments/withdrawals/` | Student, manager, or super admin, in scope |
+| POST | `/enrollments/decide-withdrawal/` | Manager `{ id, approve, note }`. Approval does not cancel the invoice. |
+| POST | `/enrollments/<id>/complete/` | Manager, after the course end date |
+
+Attendance correction `PATCH /attendance/records/<id>/` accepts `{ status, reason }`. The reason is required for the manager and must be at least 5 characters. A teacher is still refused.
 
 ## Errors
 
 - `400` business rule, such as a full course or a fourth installment
 - `403` wrong role or another center
 - `404` the object is outside the caller's queryset, including another center's id
-- `409` duplicate enrollment, schedule clash, or a second active contract
+- `409` duplicate enrollment, schedule clash, a second active contract, a second scholarship, or a reused idempotency key with a different payload
 
 Cross-center attempts are written to the audit log with level `security`.
