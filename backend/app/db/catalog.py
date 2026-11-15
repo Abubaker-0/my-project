@@ -1,0 +1,267 @@
+"""Permission and role catalog shared by the seed script and the API."""
+
+from __future__ import annotations
+
+PERMISSIONS: list[tuple[str, str, str]] = [
+    ("users:read", "View user accounts", "users"),
+    ("users:create", "Create user accounts", "users"),
+    ("users:update", "Update user accounts", "users"),
+    ("users:delete", "Deactivate user accounts", "users"),
+    ("roles:read", "View roles", "roles"),
+    ("roles:create", "Create roles", "roles"),
+    ("roles:update", "Update roles", "roles"),
+    ("roles:delete", "Delete roles", "roles"),
+    ("permissions:read", "View the permission catalog", "permissions"),
+    ("permissions:assign", "Assign permissions to roles", "permissions"),
+    ("branches:read", "View branches", "branches"),
+    ("branches:create", "Create branches", "branches"),
+    ("branches:update", "Update branches", "branches"),
+    ("branches:delete", "Delete branches", "branches"),
+    ("settings:read", "View settings", "settings"),
+    ("settings:update", "Update settings", "settings"),
+    ("academic_years:read", "View academic years", "academic_years"),
+    ("academic_years:create", "Create academic years", "academic_years"),
+    ("academic_years:update", "Update academic years", "academic_years"),
+    ("academic_years:delete", "Delete academic years", "academic_years"),
+    ("rooms:read", "View rooms", "rooms"),
+    ("rooms:create", "Create rooms", "rooms"),
+    ("rooms:update", "Update rooms", "rooms"),
+    ("rooms:delete", "Delete rooms", "rooms"),
+    ("students:read", "View students", "students"),
+    ("students:create", "Admit students", "students"),
+    ("students:update", "Update students", "students"),
+    ("students:delete", "Archive students", "students"),
+    ("guardians:read", "View guardians", "guardians"),
+    ("guardians:create", "Create guardians", "guardians"),
+    ("guardians:update", "Update guardians", "guardians"),
+    ("guardians:delete", "Archive guardians", "guardians"),
+    ("documents:read", "View student documents", "documents"),
+    ("documents:create", "Upload student documents", "documents"),
+    ("documents:delete", "Delete student documents", "documents"),
+    ("inquiries:read", "View inquiries", "inquiries"),
+    ("inquiries:create", "Create inquiries", "inquiries"),
+    ("inquiries:update", "Update inquiries", "inquiries"),
+    ("inquiries:delete", "Delete inquiries", "inquiries"),
+    ("inquiries:convert", "Convert an inquiry into an admission", "inquiries"),
+    ("subjects:read", "View subjects", "subjects"),
+    ("subjects:create", "Create subjects", "subjects"),
+    ("subjects:update", "Update subjects", "subjects"),
+    ("subjects:delete", "Delete subjects", "subjects"),
+    ("courses:read", "View courses", "courses"),
+    ("courses:create", "Create courses", "courses"),
+    ("courses:update", "Update courses", "courses"),
+    ("courses:delete", "Delete courses", "courses"),
+    ("batches:read", "View batches", "batches"),
+    ("batches:create", "Create batches", "batches"),
+    ("batches:update", "Update batches", "batches"),
+    ("batches:delete", "Delete batches", "batches"),
+    ("enrollment:read", "View enrollments", "enrollment"),
+    ("enrollment:create", "Enroll students", "enrollment"),
+    ("enrollment:update", "Update enrollments", "enrollment"),
+    ("enrollment:withdraw", "Withdraw enrollments", "enrollment"),
+    ("enrollment:transfer", "Transfer enrollments", "enrollment"),
+    ("timetable:read", "View the timetable", "timetable"),
+    ("timetable:create", "Create sessions", "timetable"),
+    ("timetable:update", "Update sessions", "timetable"),
+    ("timetable:delete", "Cancel sessions", "timetable"),
+    ("attendance:read", "View attendance", "attendance"),
+    ("attendance:mark", "Mark attendance", "attendance"),
+    ("assessments:read", "View assessments", "assessments"),
+    ("assessments:create", "Create assessments", "assessments"),
+    ("assessments:update", "Update assessments", "assessments"),
+    ("assessments:delete", "Delete assessments", "assessments"),
+    ("assessments:publish", "Publish results", "assessments"),
+    ("assessments:reopen", "Reopen published results", "assessments"),
+    ("results:read", "View marks", "results"),
+    ("results:enter", "Enter marks", "results"),
+    ("fees:read", "View fee plans", "fees"),
+    ("fees:create", "Create fee plans", "fees"),
+    ("fees:update", "Update fee plans", "fees"),
+    ("fees:delete", "Delete fee plans", "fees"),
+    ("invoices:read", "View invoices", "invoices"),
+    ("invoices:create", "Generate invoices", "invoices"),
+    ("invoices:update", "Update invoices", "invoices"),
+    ("invoices:cancel", "Cancel invoices", "invoices"),
+    ("payments:read", "View payments", "payments"),
+    ("payments:create", "Record payments", "payments"),
+    ("payments:void", "Void payments", "payments"),
+    ("refunds:read", "View refunds", "refunds"),
+    ("refunds:create", "Issue refunds", "refunds"),
+    ("expenses:read", "View expenses", "expenses"),
+    ("expenses:create", "Record expenses", "expenses"),
+    ("expenses:update", "Update expenses", "expenses"),
+    ("expenses:delete", "Delete expenses", "expenses"),
+    ("cash:read", "View cash closings", "cash"),
+    ("cash:close", "Close the cash drawer", "cash"),
+    ("staff:read", "View staff", "staff"),
+    ("staff:create", "Create staff", "staff"),
+    ("staff:update", "Update staff", "staff"),
+    ("staff:delete", "Archive staff", "staff"),
+    ("leave:read", "View leave requests", "leave"),
+    ("leave:create", "Request leave", "leave"),
+    ("leave:approve", "Decide leave requests", "leave"),
+    ("payroll:read", "View payroll", "payroll"),
+    ("payroll:create", "Run payroll", "payroll"),
+    ("payroll:update", "Update payroll", "payroll"),
+    ("announcements:read", "View announcements", "announcements"),
+    ("announcements:create", "Publish announcements", "announcements"),
+    ("announcements:update", "Update announcements", "announcements"),
+    ("announcements:delete", "Delete announcements", "announcements"),
+    ("notifications:read", "View notifications", "notifications"),
+    ("notifications:update", "Mark notifications read", "notifications"),
+    ("materials:read", "View learning materials", "materials"),
+    ("materials:create", "Upload learning materials", "materials"),
+    ("materials:delete", "Delete learning materials", "materials"),
+    ("reports:read", "View reports", "reports"),
+    ("reports:export", "Export reports", "reports"),
+    ("audit:read", "View the audit log", "audit"),
+    ("imports:create", "Import data from CSV", "imports"),
+    ("portal:read", "Use the student and parent portal", "portal"),
+]
+
+ALL_CODES = {code for code, _, _ in PERMISSIONS}
+
+# Organization-wide controls stay with Super Admin. Branch Admin runs the campus.
+_BRANCH_ADMIN_EXCLUDED = {
+    "roles:create",
+    "roles:update",
+    "roles:delete",
+    "permissions:assign",
+    "branches:create",
+    "branches:delete",
+    "imports:create",
+}
+
+
+def _codes(*codes: str) -> set[str]:
+    unknown = set(codes) - ALL_CODES
+    if unknown:
+        raise RuntimeError(f"Unknown permission codes: {sorted(unknown)}")
+    return set(codes)
+
+
+def _modules(*modules: str) -> set[str]:
+    found = {code for code, _, module in PERMISSIONS if module in modules}
+    if not found:
+        raise RuntimeError(f"No permissions for modules: {modules}")
+    return found
+
+
+ROLE_DEFINITIONS: dict[str, tuple[str, str, set[str]]] = {
+    "super_admin": (
+        "Super Admin",
+        "Full access to every branch, including roles, settings, and the audit log.",
+        set(ALL_CODES),
+    ),
+    "branch_admin": (
+        "Branch Admin",
+        "Runs one branch: students, fees, staff, reports, and day-to-day operations.",
+        set(ALL_CODES) - _BRANCH_ADMIN_EXCLUDED,
+    ),
+    "academic_coordinator": (
+        "Academic Coordinator",
+        "Owns courses, batches, the timetable, and result approval in one branch.",
+        _modules(
+            "subjects",
+            "courses",
+            "batches",
+            "enrollment",
+            "timetable",
+            "assessments",
+            "results",
+            "materials",
+        )
+        | _codes(
+            "students:read",
+            "students:update",
+            "guardians:read",
+            "documents:read",
+            "inquiries:read",
+            "attendance:read",
+            "announcements:read",
+            "announcements:create",
+            "announcements:update",
+            "academic_years:read",
+            "rooms:read",
+            "reports:read",
+            "portal:read",
+        ),
+    ),
+    "teacher": (
+        "Teacher",
+        "Sees assigned batches: timetable, attendance, marks, and materials.",
+        _codes(
+            "students:read",
+            "batches:read",
+            "timetable:read",
+            "attendance:read",
+            "attendance:mark",
+            "assessments:read",
+            "results:read",
+            "results:enter",
+            "materials:read",
+            "materials:create",
+            "announcements:read",
+            "portal:read",
+        ),
+    ),
+    "accountant": (
+        "Accountant",
+        "Owns fees, invoices, payments, expenses, payroll, and financial reports.",
+        _modules("fees", "invoices", "payments", "refunds", "expenses", "cash", "payroll")
+        | _codes(
+            "students:read",
+            "staff:read",
+            "reports:read",
+            "reports:export",
+            "announcements:read",
+        ),
+    ),
+    "receptionist": (
+        "Receptionist",
+        "Handles inquiries, admissions, student lookup, and payment collection.",
+        _codes(
+            "inquiries:read",
+            "inquiries:create",
+            "inquiries:update",
+            "inquiries:convert",
+            "students:read",
+            "students:create",
+            "students:update",
+            "guardians:read",
+            "guardians:create",
+            "guardians:update",
+            "payments:read",
+            "payments:create",
+            "invoices:read",
+            "announcements:read",
+        ),
+    ),
+    "student": (
+        "Student",
+        "Sees their own timetable, attendance, results, and invoices.",
+        _codes(
+            "portal:read",
+            "announcements:read",
+            "notifications:read",
+            "notifications:update",
+        ),
+    ),
+    "parent": (
+        "Parent",
+        "Sees the same academic and fee information for each linked child.",
+        _codes(
+            "portal:read",
+            "announcements:read",
+            "notifications:read",
+            "notifications:update",
+            "invoices:read",
+            "payments:read",
+        ),
+    ),
+}
+
+
+def all_permission_codes() -> list[str]:
+    """Return every permission code in a stable order."""
+    return sorted(ALL_CODES)
