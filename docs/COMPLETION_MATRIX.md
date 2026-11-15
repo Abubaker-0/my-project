@@ -33,5 +33,6 @@ Labels: verified means an automated test exercised the server rule. A screen or 
 | Notifications owned and deduped | `notify` | recipient filter, unique key | bell | `test_notifications_are_deduplicated_and_private` | verified |
 | Integrity checker is read-only | `integrity_report` | no saves | governance list | controlled bad rows, `updated_at` unchanged | verified |
 | Room capacity edit | no route | PATCH 405; enrollment rechecks current size | not offered | `test_classroom_capacity_has_no_update_route` | out of scope, not a defect |
-| Concurrency of seats, contracts, schedules, payments, refunds, waitlist, idempotency | service locks and unique keys | final row counts | not a UI concern | 10 tests passed on MariaDB 10.11 InnoDB | MySQL 8.0 not started locally; CI job is defined |
+| Workflow screens | page components | API tests remain the authority | governance, settings, enrollment, attendance, payments, refunds, reports, notifications | 20 frontend tests | browser checks do not replace the API suite |
+| Concurrency of seats, contracts, schedules, payments, refunds, waitlist, idempotency | service locks and unique keys | final row counts | payment dialog reuses one key | 10 tests passed on MariaDB 10.11 InnoDB | MySQL 8.0 not started locally; CI job is defined |
 | Previous application writing the new schema | migrations are additive | old app can still insert an empty payment key | n/a | migration operation test forbids deletes | rollback is restore-from-backup, documented in `docs/DEPLOYMENT.md` |
