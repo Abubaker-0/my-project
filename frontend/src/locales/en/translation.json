@@ -240,6 +240,7 @@
     "permissionHint": "Protected duties stay with their role. A restriction can only narrow an optional permission.",
     "protected": "protected",
     "restrictExports": "Restrict finance invoice export",
+    "restoreExports": "Restore finance invoice export",
     "promote": "Offer the seat",
     "complete": "Mark completed",
     "policyProspective": "Saving a policy applies to later work. Issued invoices and sent reports stay as they were.",

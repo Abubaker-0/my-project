@@ -19,9 +19,9 @@ export function GovernancePage() {
     client.get('/reports/integrity/').then((response) => setIssues(unwrap(response).issues || [])).catch((err) => toast(errorMessage(err), 'danger'));
   }, []);
 
-  const restrictExport = async () => {
+  const setExport = async (allowed) => {
     try {
-      await client.post('/permissions/overrides/', { role: 'finance_manager', code: 'exports.invoices', allowed: false });
+      await client.post('/permissions/overrides/', { role: 'finance_manager', code: 'exports.invoices', allowed });
       toast(t('common.saved'), 'success');
     } catch (err) {
       toast(errorMessage(err), 'danger');
@@ -43,7 +43,10 @@ export function GovernancePage() {
         {catalog.map((item) => (
           <p key={item.code}><strong>{item.code}</strong> — {item.description} {item.protected ? `(${t('common.protected')})` : ''}</p>
         ))}
-        <Button onClick={restrictExport}>{t('common.restrictExports')}</Button>
+        <div className="row-actions">
+          <Button onClick={() => setExport(false)}>{t('common.restrictExports')}</Button>
+          <Button variant="ghost" onClick={() => setExport(true)}>{t('common.restoreExports')}</Button>
+        </div>
       </Card>
     </div>
   );
